@@ -120,6 +120,101 @@
             50% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
+
+        /* Toast 通知样式 */
+        .toast-notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            animation: toastSlideIn 0.3s ease-out;
+        }
+        .toast-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .toast-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        .toast-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        .toast-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .toast-exit {
+            animation: toastSlideOut 0.3s ease-in forwards;
+        }
+        @keyframes toastSlideOut {
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* 按钮波纹效果 */
+        .ripple {
+            position: relative;
+            overflow: hidden;
+        }
+        .ripple::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        .ripple:active::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .toast-notification {
+                left: 1rem;
+                right: 1rem;
+                max-width: none;
+            }
+        }
+
+        /* 减少动画模式 */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -269,7 +364,7 @@
 
                 <!-- Generate Button -->
                 <button onclick="generateQR()" id="generate-btn"
-                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-teal-700 hover:to-teal-800 transition-all duration-300 transform hover:scale-[1.02] btn-hover relative overflow-hidden">
+                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-teal-700 hover:to-teal-800 transition-all duration-300 transform hover:scale-[1.02] btn-hover ripple relative overflow-hidden">
                     <span class="relative z-10 flex items-center justify-center space-x-2">
                         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
@@ -308,7 +403,7 @@
                         </div>
                         <div id="qr-info" class="mt-4 text-sm text-gray-600 text-center font-medium"></div>
                         <button onclick="downloadQR()" id="download-btn"
-                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover flex items-center justify-center space-x-2">
+                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
@@ -337,14 +432,34 @@
         </div>
     </footer>
 
-    <!-- Error Toast -->
-    <div id="error-toast" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg hidden fade-in">
-        <p id="error-message"></p>
-    </div>
+    <!-- Enhanced Toast Notifications Container -->
+    <div id="toast-container" class="toast-notification"></div>
 
     <script>
         let currentMode = 'static';
         let currentQRData = null;
+
+        // Toast 通知系统
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                error: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                warning: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>',
+                info: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+            };
+
+            toast.innerHTML = `${icons[type]}<span class="font-medium">${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-exit');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, duration);
+        }
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -440,12 +555,15 @@
 
                 uploadProgress.classList.add('hidden');
                 uploadSuccess.classList.remove('hidden');
+                uploadSuccess.classList.add('checkmark');
 
                 document.getElementById('uploaded-filename').textContent = data.filename;
                 document.getElementById('uploaded-filesize').textContent = formatFileSize(data.size);
                 document.getElementById('audio-path').value = data.path;
                 document.getElementById('audio-filename').value = data.filename;
                 document.getElementById('audio-size').value = data.size;
+
+                showSuccess(`音频上传成功: ${data.filename}`);
 
             } catch (error) {
                 uploadProgress.classList.add('hidden');
@@ -540,15 +658,19 @@
 
                 // 显示二维码
                 document.getElementById('qr-loading').classList.add('hidden');
-                document.getElementById('qr-display').classList.remove('hidden');
+                const qrDisplay = document.getElementById('qr-display');
+                qrDisplay.classList.remove('hidden');
+                qrDisplay.classList.add('fade-in');
                 document.getElementById('qr-image').src = data.qr_code_data_url;
 
                 // 显示信息
                 const infoDiv = document.getElementById('qr-info');
                 if (data.mode === 'static') {
-                    infoDiv.textContent = '静态码模式（无需网络）';
+                    infoDiv.textContent = '✅ 静态码模式（无需网络）';
+                    showSuccess('二维码生成成功！');
                 } else {
-                    infoDiv.textContent = `活码模式 · 访问码: ${data.short_id}`;
+                    infoDiv.textContent = `✨ 活码模式 · 访问码: ${data.short_id}`;
+                    showSuccess(`二维码生成成功！访问码: ${data.short_id}`);
                 }
 
             } catch (error) {
@@ -569,14 +691,28 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
             link.download = `作业_${timestamp}.png`;
             link.click();
+
+            showSuccess('二维码已下载！');
         }
 
-        // 显示错误
+        // 显示错误（使用新的 Toast 系统）
         function showError(message) {
-            const toast = document.getElementById('error-toast');
-            document.getElementById('error-message').textContent = message;
-            toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 3000);
+            showToast(message, 'error', 4000);
+        }
+
+        // 显示成功消息
+        function showSuccess(message) {
+            showToast(message, 'success', 3000);
+        }
+
+        // 显示警告消息
+        function showWarning(message) {
+            showToast(message, 'warning', 3500);
+        }
+
+        // 显示信息消息
+        function showInfo(message) {
+            showToast(message, 'info', 3000);
         }
 
         // 格式化文件大小
