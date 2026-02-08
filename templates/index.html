@@ -196,12 +196,156 @@
             height: 300px;
         }
 
+        /* 骨架屏加载动画 */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 0.375rem;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-text {
+            height: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        .skeleton-text.title {
+            height: 1.5rem;
+            width: 60%;
+            margin-bottom: 1rem;
+        }
+        .skeleton-text.short {
+            width: 40%;
+        }
+
+        .skeleton-qr {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 1rem;
+        }
+
+        /* 快捷键提示样式 */
+        .kbd {
+            display: inline-block;
+            padding: 0.125rem 0.375rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 复制成功动画 */
+        .copy-success {
+            animation: copySuccess 0.6s ease-out;
+        }
+        @keyframes copySuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* 进度条动画 */
+        .progress-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #14b8a6, #0d9488);
+            transition: width 0.3s ease;
+        }
+
+        /* 提示框样式 */
+        .tooltip {
+            position: relative;
+        }
+        .tooltip-text {
+            visibility: hidden;
+            background: #1f2937;
+            color: white;
+            text-align: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            position: absolute;
+            z-index: 100;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* 快捷键提示面板 */
+        .shortcuts-panel {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .shortcuts-panel.hidden {
+            display: none;
+        }
+        .shortcuts-title {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #1f2937;
+        }
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.375rem 0;
+            font-size: 0.875rem;
+        }
+        .shortcut-desc {
+            color: #6b7280;
+        }
+
+        /* 访问码复制按钮 */
+        .access-code-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .copy-btn {
+            background: #f3f4f6;
+            border: none;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .copy-btn:hover {
+            background: #e5e7eb;
+        }
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+
         /* 移动端优化 */
         @media (max-width: 768px) {
-            .toast-notification {
-                left: 1rem;
-                right: 1rem;
-                max-width: none;
+            .shortcuts-panel {
+                display: none; /* 移动端隐藏快捷键提示 */
             }
         }
 
@@ -377,13 +521,20 @@
             <!-- Right Panel: Preview (40%) -->
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-2xl shadow-xl p-6 sticky top-8 card-hover">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        二维码预览
-                    </h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            二维码预览
+                        </h3>
+                        <button onclick="toggleShortcuts()" class="text-gray-400 hover:text-gray-600 transition-colors" title="快捷键 (?)">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </button>
+                    </div>
 
                     <!-- Placeholder -->
                     <div id="qr-placeholder" class="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300">
@@ -393,6 +544,7 @@
                             </svg>
                             <p class="text-sm font-medium">输入内容后点击生成</p>
                             <p class="text-xs mt-2 text-gray-400">支持三种模式</p>
+                            <p class="text-xs mt-1">快捷键: <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></p>
                         </div>
                     </div>
 
@@ -401,22 +553,31 @@
                         <div class="aspect-square bg-white rounded-2xl p-6 flex items-center justify-center qr-glow">
                             <img id="qr-image" src="" alt="QR Code" class="max-w-full max-h-full">
                         </div>
-                        <div id="qr-info" class="mt-4 text-sm text-gray-600 text-center font-medium"></div>
-                        <button onclick="downloadQR()" id="download-btn"
-                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            <span>下载 PNG</span>
-                        </button>
+                        <div id="qr-info" class="mt-4 text-sm text-center">
+                            <!-- Will be populated dynamically -->
+                        </div>
+                        <div id="qr-actions" class="mt-4 space-y-2">
+                            <button onclick="downloadQR()" id="download-btn"
+                                class="w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                <span>下载 PNG</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Loading -->
-                    <div id="qr-loading" class="hidden aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center">
-                        <div class="text-center">
-                            <div class="spinner mx-auto mb-4" style="width: 48px; height: 48px; border-width: 4px;"></div>
-                            <p class="text-gray-600 font-medium">生成中...</p>
-                            <p class="text-sm text-gray-500 mt-1">请稍候</p>
+                    <!-- Loading with Skeleton -->
+                    <div id="qr-loading" class="hidden">
+                        <div class="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6">
+                            <div class="skeleton skeleton-qr"></div>
+                        </div>
+                        <div class="mt-4 space-y-2">
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text short"></div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="skeleton skeleton-text" style="height: 3rem; border-radius: 0.75rem;"></div>
                         </div>
                     </div>
                 </div>
@@ -434,6 +595,57 @@
 
     <!-- Enhanced Toast Notifications Container -->
     <div id="toast-container" class="toast-notification"></div>
+
+    <!-- Keyboard Shortcuts Panel -->
+    <div id="shortcuts-panel" class="shortcuts-panel hidden">
+        <div class="flex items-center justify-between shortcuts-title">
+            <span>⌨️ 键盘快捷键</span>
+            <button onclick="toggleShortcuts()" class="text-gray-400 hover:text-gray-600">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">生成二维码</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">清空内容</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">K</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">静态码模式</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">1</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">活码模式</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">2</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">听力模式</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">3</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">关闭面板</span>
+            <div>
+                <span class="kbd">Esc</span>
+            </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
+            按 <span class="kbd">?</span> 可随时打开此面板
+        </div>
+    </div>
 
     <script>
         let currentMode = 'static';
@@ -465,7 +677,79 @@
         document.addEventListener('DOMContentLoaded', function() {
             switchMode('static');
             setupFileUpload();
+            setupKeyboardShortcuts();
         });
+
+        // 设置键盘快捷键
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', function(e) {
+                // Ctrl/Cmd + Enter: 生成二维码
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    generateQR();
+                }
+                // Ctrl/Cmd + K: 清空内容
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    document.getElementById('content').value = '';
+                    updateCharCount();
+                    showInfo('内容已清空');
+                }
+                // Ctrl/Cmd + 1: 静态码
+                if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+                    e.preventDefault();
+                    switchMode('static');
+                }
+                // Ctrl/Cmd + 2: 活码作业
+                if ((e.ctrlKey || e.metaKey) && e.key === '2') {
+                    e.preventDefault();
+                    switchMode('text');
+                }
+                // Ctrl/Cmd + 3: 听力作业
+                if ((e.ctrlKey || e.metaKey) && e.key === '3') {
+                    e.preventDefault();
+                    switchMode('listening');
+                }
+                // Escape: 关闭快捷键面板
+                if (e.key === 'Escape') {
+                    const panel = document.getElementById('shortcuts-panel');
+                    if (!panel.classList.contains('hidden')) {
+                        panel.classList.add('hidden');
+                    }
+                }
+                // ?: 显示快捷键面板
+                if (e.key === '?' && !e.target.matches('input, textarea')) {
+                    toggleShortcuts();
+                }
+            });
+        }
+
+        // 切换快捷键面板
+        function toggleShortcuts() {
+            const panel = document.getElementById('shortcuts-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        // 复制到剪贴板
+        async function copyToClipboard(text, buttonElement) {
+            try {
+                await navigator.clipboard.writeText(text);
+
+                // 更新按钮状态
+                const originalText = buttonElement.innerHTML;
+                buttonElement.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+                buttonElement.classList.add('copy-success');
+
+                showSuccess('已复制到剪贴板！');
+
+                setTimeout(() => {
+                    buttonElement.innerHTML = originalText;
+                    buttonElement.classList.remove('copy-success');
+                }, 2000);
+            } catch (err) {
+                showError('复制失败，请手动复制');
+            }
+        }
 
         // 切换模式
         function switchMode(mode) {
@@ -663,13 +947,46 @@
                 qrDisplay.classList.add('fade-in');
                 document.getElementById('qr-image').src = data.qr_code_data_url;
 
-                // 显示信息
+                // 显示信息和操作
                 const infoDiv = document.getElementById('qr-info');
+                const actionsDiv = document.getElementById('qr-actions');
+
                 if (data.mode === 'static') {
-                    infoDiv.textContent = '✅ 静态码模式（无需网络）';
+                    infoDiv.innerHTML = '<div class="bg-green-50 text-green-700 px-4 py-2 rounded-lg inline-flex items-center"><svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>静态码模式（无需网络）</div>';
+                    actionsDiv.innerHTML = `
+                        <button onclick="downloadQR()" class="w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <span>下载 PNG</span>
+                        </button>
+                    `;
                     showSuccess('二维码生成成功！');
                 } else {
-                    infoDiv.textContent = `✨ 活码模式 · 访问码: ${data.short_id}`;
+                    const accessCodeHtml = `
+                        <div class="space-y-3">
+                            <div class="bg-teal-50 text-teal-700 px-4 py-2 rounded-lg inline-flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                活码模式
+                            </div>
+                            <div class="access-code-container bg-white border-2 border-teal-200 rounded-lg px-4 py-2">
+                                <span class="font-mono font-bold text-teal-700" id="access-code-text">${data.short_id}</span>
+                                <button onclick="copyToClipboard('${data.short_id}', this)" class="copy-btn" title="复制访问码">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 text-center">访问码可用于直接访问此作业</p>
+                        </div>
+                    `;
+                    infoDiv.innerHTML = accessCodeHtml;
+                    actionsDiv.innerHTML = `
+                        <button onclick="copyToClipboard('${data.view_url}', this)" class="w-full bg-teal-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-teal-700 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            <span>复制链接</span>
+                        </button>
+                        <button onclick="downloadQR()" class="w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <span>下载 PNG</span>
+                        </button>
+                    `;
                     showSuccess(`二维码生成成功！访问码: ${data.short_id}`);
                 }
 
