@@ -11,7 +11,7 @@
             width: 8px;
         }
         textarea::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: #f1f5f9;
             border-radius: 4px;
         }
         textarea::-webkit-scrollbar-thumb {
@@ -24,8 +24,8 @@
 
         /* 加载动画 */
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #0d9488;
+            border: 3px solid #f0fdfa;
+            border-top: 3px solid #14b8a6;
             border-radius: 50%;
             width: 24px;
             height: 24px;
@@ -41,22 +41,112 @@
             animation: fadeIn 0.3s ease-in;
         }
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 滑入动画 */
+        .slide-in {
+            animation: slideIn 0.4s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* 脉冲动画 */
+        .pulse-subtle {
+            animation: pulseSubtle 2s ease-in-out infinite;
+        }
+        @keyframes pulseSubtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        /* Tab 切换动画 */
+        .tab-indicator {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 输入框焦点效果 */
+        .input-focused {
+            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+        }
+
+        /* 按钮悬停效果 */
+        .btn-hover {
+            transition: all 0.2s ease;
+        }
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .btn-hover:active {
+            transform: translateY(0);
+        }
+
+        /* 二维码展示效果 */
+        .qr-glow {
+            box-shadow: 0 0 40px rgba(20, 184, 166, 0.15);
+        }
+
+        /* 渐变背景动画 */
+        .gradient-bg {
+            background: linear-gradient(-45deg, #0d9488, #14b8a6, #0f766e, #115e59);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 卡片悬浮效果 */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        /* 成功勾选动画 */
+        .checkmark {
+            animation: checkmark 0.4s ease-in-out;
+        }
+        @keyframes checkmark {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
-    <header class="bg-gradient-to-r from-teal-600 to-teal-700 text-white shadow-lg">
-        <div class="container mx-auto px-4 py-6">
+    <header class="gradient-bg text-white shadow-xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-black/5"></div>
+        <div class="container mx-auto px-4 py-8 relative">
             <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold">EduQR Lite</h1>
-                    <p class="text-teal-100 mt-1">简易作业二维码生成器</p>
+                <div class="slide-in">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold tracking-tight">EduQR Lite</h1>
+                            <p class="text-teal-100 mt-1 text-sm">轻量级作业二维码生成器</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-right text-sm text-teal-100">
-                    <p>极简 · 无广告 · 私有化部署</p>
+                <div class="hidden md:block text-right slide-in">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+                        <p class="text-xs text-teal-100">✨ 极简体验</p>
+                        <p class="text-xs text-teal-100 mt-1">🚀 私有化部署</p>
+                        <p class="text-xs text-teal-100 mt-1">🔒 数据自主掌控</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -68,18 +158,21 @@
             <!-- Left Panel: Input (60%) -->
             <div class="lg:col-span-3 space-y-6">
                 <!-- Mode Tabs -->
-                <div class="bg-white rounded-xl shadow-md p-2 flex gap-2">
+                <div class="bg-white rounded-2xl shadow-lg p-2 flex gap-2 card-hover">
                     <button onclick="switchMode('static')" id="tab-static"
-                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
-                        📝 静态码
+                        class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 hover:bg-gray-50 flex items-center justify-center space-x-2">
+                        <span class="text-xl">📝</span>
+                        <span>静态码</span>
                     </button>
                     <button onclick="switchMode('text')" id="tab-text"
-                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
-                        📄 活码作业
+                        class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 hover:bg-gray-50 flex items-center justify-center space-x-2">
+                        <span class="text-xl">📄</span>
+                        <span>活码作业</span>
                     </button>
                     <button onclick="switchMode('listening')" id="tab-listening"
-                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
-                        🎧 听力作业
+                        class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 hover:bg-gray-50 flex items-center justify-center space-x-2">
+                        <span class="text-xl">🎧</span>
+                        <span>听力作业</span>
                     </button>
                 </div>
 
@@ -132,18 +225,23 @@
                 </div>
 
                 <!-- Content Input -->
-                <div class="bg-white rounded-xl shadow-md p-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                <div class="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                    <label class="block text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                        <svg class="h-4 w-4 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
                         作业内容
                     </label>
-                    <textarea id="content" rows="12" placeholder="请输入作业内容..."
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                    <textarea id="content" rows="12" placeholder="请输入作业内容... 支持 Markdown 格式"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none transition-all duration-200 text-gray-700"
                         oninput="updateCharCount()"></textarea>
-                    <div class="mt-3 flex justify-between items-center">
-                        <p class="text-sm text-gray-500">
-                            当前: <span id="char-count" class="font-medium">0</span> 字符
-                            <span id="mode-recommendation" class="ml-2 text-teal-600 font-medium"></span>
-                        </p>
+                    <div class="mt-3 flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
+                        <div class="flex items-center space-x-2 text-sm">
+                            <span class="text-gray-600">当前:</span>
+                            <span id="char-count" class="font-bold text-teal-600 text-lg">0</span>
+                            <span class="text-gray-600">字符</span>
+                        </div>
+                        <div id="mode-recommendation" class="text-sm font-medium text-teal-600 bg-teal-50 px-3 py-1 rounded-full"></div>
                     </div>
                 </div>
 
@@ -171,43 +269,59 @@
 
                 <!-- Generate Button -->
                 <button onclick="generateQR()" id="generate-btn"
-                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-xl font-bold text-lg shadow-lg hover:from-teal-700 hover:to-teal-800 transition-all duration-200 transform hover:scale-[1.02]">
-                    生成二维码
+                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-teal-700 hover:to-teal-800 transition-all duration-300 transform hover:scale-[1.02] btn-hover relative overflow-hidden">
+                    <span class="relative z-10 flex items-center justify-center space-x-2">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        <span>生成二维码</span>
+                    </span>
                 </button>
             </div>
 
             <!-- Right Panel: Preview (40%) -->
             <div class="lg:col-span-2">
-                <div class="bg-white rounded-xl shadow-md p-6 sticky top-8">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">二维码预览</h3>
+                <div class="bg-white rounded-2xl shadow-xl p-6 sticky top-8 card-hover">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        二维码预览
+                    </h3>
 
                     <!-- Placeholder -->
-                    <div id="qr-placeholder" class="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                        <div class="text-center text-gray-400">
-                            <svg class="mx-auto h-24 w-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div id="qr-placeholder" class="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300">
+                        <div class="text-center text-gray-400 p-6">
+                            <svg class="mx-auto h-24 w-24 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                             </svg>
-                            <p class="mt-4 text-sm">输入内容后点击生成</p>
+                            <p class="text-sm font-medium">输入内容后点击生成</p>
+                            <p class="text-xs mt-2 text-gray-400">支持三种模式</p>
                         </div>
                     </div>
 
                     <!-- QR Code Display -->
                     <div id="qr-display" class="hidden">
-                        <div class="aspect-square bg-white rounded-lg p-4 flex items-center justify-center border-2 border-gray-200">
+                        <div class="aspect-square bg-white rounded-2xl p-6 flex items-center justify-center qr-glow">
                             <img id="qr-image" src="" alt="QR Code" class="max-w-full max-h-full">
                         </div>
-                        <div id="qr-info" class="mt-4 text-sm text-gray-600 text-center"></div>
+                        <div id="qr-info" class="mt-4 text-sm text-gray-600 text-center font-medium"></div>
                         <button onclick="downloadQR()" id="download-btn"
-                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-900 transition-colors">
-                            下载 PNG
+                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-xl font-semibold hover:bg-gray-900 transition-all duration-200 btn-hover flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span>下载 PNG</span>
                         </button>
                     </div>
 
                     <!-- Loading -->
-                    <div id="qr-loading" class="hidden aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div id="qr-loading" class="hidden aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center">
                         <div class="text-center">
-                            <div class="spinner mx-auto mb-3" style="width: 48px; height: 48px;"></div>
-                            <p class="text-gray-600">生成中...</p>
+                            <div class="spinner mx-auto mb-4" style="width: 48px; height: 48px; border-width: 4px;"></div>
+                            <p class="text-gray-600 font-medium">生成中...</p>
+                            <p class="text-sm text-gray-500 mt-1">请稍候</p>
                         </div>
                     </div>
                 </div>
@@ -247,9 +361,9 @@
             tabs.forEach(tab => {
                 const btn = document.getElementById(`tab-${tab}`);
                 if (tab === mode) {
-                    btn.className = 'flex-1 py-3 px-4 rounded-lg font-bold transition-all duration-200 bg-teal-600 text-white';
+                    btn.className = 'flex-1 py-3 px-4 rounded-xl font-bold transition-all duration-300 bg-gradient-to-r from-teal-600 to-teal-700 text-white shadow-lg transform scale-105 flex items-center justify-center space-x-2';
                 } else {
-                    btn.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100 text-gray-700';
+                    btn.className = 'flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 hover:bg-gray-50 text-gray-700 flex items-center justify-center space-x-2';
                 }
             });
 
@@ -257,6 +371,7 @@
             const audioSection = document.getElementById('audio-upload-section');
             if (mode === 'listening') {
                 audioSection.classList.remove('hidden');
+                audioSection.classList.add('fade-in');
             } else {
                 audioSection.classList.add('hidden');
                 clearAudio();
