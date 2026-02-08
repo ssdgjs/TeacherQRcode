@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data              # SQLite database persistence
+      - ./uploads:/app/static/uploads # Audio files persistence
+    environment:
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - DATA_RETENTION_DAYS=${DATA_RETENTION_DAYS:-30}
+      - MAX_CONTENT_LENGTH=${MAX_CONTENT_LENGTH:-10000}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-20}
+      - ALLOWED_AUDIO_EXTENSIONS=${ALLOWED_AUDIO_EXTENSIONS:-mp3,wav,m4a,ogg}
+      - QR_CODE_SIZE=${QR_CODE_SIZE:-300}
+      - QR_ERROR_CORRECTION=${QR_ERROR_CORRECTION:-M}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduQR Lite - 作业二维码生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义滚动条 */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 加载动画 */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0d9488;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 淡入动画 */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-teal-600 to-teal-700 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">EduQR Lite</h1>
+                    <p class="text-teal-100 mt-1">简易作业二维码生成器</p>
+                </div>
+                <div class="text-right text-sm text-teal-100">
+                    <p>极简 · 无广告 · 私有化部署</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <!-- Left Panel: Input (60%) -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- Mode Tabs -->
+                <div class="bg-white rounded-xl shadow-md p-2 flex gap-2">
+                    <button onclick="switchMode('static')" id="tab-static"
+                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
+                        📝 静态码
+                    </button>
+                    <button onclick="switchMode('text')" id="tab-text"
+                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
+                        📄 活码作业
+                    </button>
+                    <button onclick="switchMode('listening')" id="tab-listening"
+                        class="flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100">
+                        🎧 听力作业
+                    </button>
+                </div>
+
+                <!-- Access Code -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        🔐 管理暗号
+                    </label>
+                    <input type="password" id="access-code" placeholder="请输入管理员暗号"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                </div>
+
+                <!-- Audio Upload (Listening Mode Only) -->
+                <div id="audio-upload-section" class="bg-white rounded-xl shadow-md p-6 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        🎵 上传音频文件
+                    </label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors"
+                        id="drop-zone">
+                        <input type="file" id="audio-file" accept=".mp3,.wav,.m4a,.ogg" class="hidden">
+                        <div id="upload-prompt">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <p class="mt-2 text-sm text-gray-600">
+                                点击上传或拖拽音频文件到此处
+                            </p>
+                            <p class="mt-1 text-xs text-gray-500">
+                                支持 MP3, WAV, M4A, OGG，最大 {{ max_upload_size_mb }}MB
+                            </p>
+                        </div>
+                        <div id="upload-progress" class="hidden">
+                            <div class="spinner mx-auto mb-3"></div>
+                            <p class="text-sm text-gray-600">上传中...</p>
+                        </div>
+                        <div id="upload-success" class="hidden">
+                            <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="mt-2 text-sm font-medium text-gray-900" id="uploaded-filename"></p>
+                            <p class="text-xs text-gray-500" id="uploaded-filesize"></p>
+                            <button onclick="clearAudio()" class="mt-3 text-sm text-red-600 hover:text-red-700">
+                                重新上传
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="audio-path">
+                    <input type="hidden" id="audio-filename">
+                    <input type="hidden" id="audio-size">
+                </div>
+
+                <!-- Content Input -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        作业内容
+                    </label>
+                    <textarea id="content" rows="12" placeholder="请输入作业内容..."
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                        oninput="updateCharCount()"></textarea>
+                    <div class="mt-3 flex justify-between items-center">
+                        <p class="text-sm text-gray-500">
+                            当前: <span id="char-count" class="font-medium">0</span> 字符
+                            <span id="mode-recommendation" class="ml-2 text-teal-600 font-medium"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- QR Settings -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-sm font-medium text-gray-700 mb-4">二维码设置</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">容错率</label>
+                            <select id="error-correction"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
+                                <option value="L">L (7%)</option>
+                                <option value="M" selected>M (15%)</option>
+                                <option value="Q">Q (25%)</option>
+                                <option value="H">H (30%)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">尺寸 (px)</label>
+                            <input type="number" id="qr-size" value="{{ default_size }}" min="200" max="1000"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <button onclick="generateQR()" id="generate-btn"
+                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-xl font-bold text-lg shadow-lg hover:from-teal-700 hover:to-teal-800 transition-all duration-200 transform hover:scale-[1.02]">
+                    生成二维码
+                </button>
+            </div>
+
+            <!-- Right Panel: Preview (40%) -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-md p-6 sticky top-8">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">二维码预览</h3>
+
+                    <!-- Placeholder -->
+                    <div id="qr-placeholder" class="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div class="text-center text-gray-400">
+                            <svg class="mx-auto h-24 w-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                            </svg>
+                            <p class="mt-4 text-sm">输入内容后点击生成</p>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Display -->
+                    <div id="qr-display" class="hidden">
+                        <div class="aspect-square bg-white rounded-lg p-4 flex items-center justify-center border-2 border-gray-200">
+                            <img id="qr-image" src="" alt="QR Code" class="max-w-full max-h-full">
+                        </div>
+                        <div id="qr-info" class="mt-4 text-sm text-gray-600 text-center"></div>
+                        <button onclick="downloadQR()" id="download-btn"
+                            class="mt-4 w-full bg-gray-800 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-900 transition-colors">
+                            下载 PNG
+                        </button>
+                    </div>
+
+                    <!-- Loading -->
+                    <div id="qr-loading" class="hidden aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="spinner mx-auto mb-3" style="width: 48px; height: 48px;"></div>
+                            <p class="text-gray-600">生成中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-gray-400 py-6 mt-12">
+        <div class="container mx-auto px-4 text-center text-sm">
+            <p>EduQR Lite - 简易作业二维码生成器</p>
+            <p class="mt-1">私有化部署 · 数据完全自主掌控</p>
+        </div>
+    </footer>
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg hidden fade-in">
+        <p id="error-message"></p>
+    </div>
+
+    <script>
+        let currentMode = 'static';
+        let currentQRData = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            switchMode('static');
+            setupFileUpload();
+        });
+
+        // 切换模式
+        function switchMode(mode) {
+            currentMode = mode;
+
+            // 更新 Tab 样式
+            const tabs = ['static', 'text', 'listening'];
+            tabs.forEach(tab => {
+                const btn = document.getElementById(`tab-${tab}`);
+                if (tab === mode) {
+                    btn.className = 'flex-1 py-3 px-4 rounded-lg font-bold transition-all duration-200 bg-teal-600 text-white';
+                } else {
+                    btn.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100 text-gray-700';
+                }
+            });
+
+            // 显示/隐藏音频上传区域
+            const audioSection = document.getElementById('audio-upload-section');
+            if (mode === 'listening') {
+                audioSection.classList.remove('hidden');
+            } else {
+                audioSection.classList.add('hidden');
+                clearAudio();
+            }
+
+            // 更新字符计数提示
+            updateCharCount();
+        }
+
+        // 设置文件上传
+        function setupFileUpload() {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('audio-file');
+
+            dropZone.addEventListener('click', () => fileInput.click());
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-teal-500', 'bg-teal-50');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-teal-500', 'bg-teal-50');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-teal-500', 'bg-teal-50');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    uploadAudio(files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    uploadAudio(e.target.files[0]);
+                }
+            });
+        }
+
+        // 上传音频
+        async function uploadAudio(file) {
+            const uploadPrompt = document.getElementById('upload-prompt');
+            const uploadProgress = document.getElementById('upload-progress');
+            const uploadSuccess = document.getElementById('upload-success');
+
+            uploadPrompt.classList.add('hidden');
+            uploadProgress.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '上传失败');
+                }
+
+                const data = await response.json();
+
+                uploadProgress.classList.add('hidden');
+                uploadSuccess.classList.remove('hidden');
+
+                document.getElementById('uploaded-filename').textContent = data.filename;
+                document.getElementById('uploaded-filesize').textContent = formatFileSize(data.size);
+                document.getElementById('audio-path').value = data.path;
+                document.getElementById('audio-filename').value = data.filename;
+                document.getElementById('audio-size').value = data.size;
+
+            } catch (error) {
+                uploadProgress.classList.add('hidden');
+                uploadPrompt.classList.remove('hidden');
+                showError(error.message);
+            }
+        }
+
+        // 清除音频
+        function clearAudio() {
+            document.getElementById('audio-file').value = '';
+            document.getElementById('audio-path').value = '';
+            document.getElementById('audio-filename').value = '';
+            document.getElementById('audio-size').value = '';
+            document.getElementById('upload-prompt').classList.remove('hidden');
+            document.getElementById('upload-progress').classList.add('hidden');
+            document.getElementById('upload-success').classList.add('hidden');
+        }
+
+        // 更新字符计数
+        function updateCharCount() {
+            const content = document.getElementById('content').value;
+            const count = content.length;
+            document.getElementById('char-count').textContent = count;
+
+            const recommendation = document.getElementById('mode-recommendation');
+
+            if (currentMode === 'listening') {
+                recommendation.textContent = '🎧 听力模式';
+            } else if (count <= 300) {
+                recommendation.textContent = '✅ 适合静态码';
+            } else {
+                recommendation.textContent = '💡 建议使用活码';
+            }
+        }
+
+        // 生成二维码
+        async function generateQR() {
+            const content = document.getElementById('content').value.trim();
+            const accessCode = document.getElementById('access-code').value;
+            const size = document.getElementById('qr-size').value;
+            const errorCorrection = document.getElementById('error-correction').value;
+
+            if (!content) {
+                showError('请输入作业内容');
+                return;
+            }
+
+            if (!accessCode) {
+                showError('请输入管理暗号');
+                return;
+            }
+
+            // 听力模式需要上传音频
+            if (currentMode === 'listening' && !document.getElementById('audio-path').value) {
+                showError('请先上传音频文件');
+                return;
+            }
+
+            // 显示加载状态
+            document.getElementById('qr-placeholder').classList.add('hidden');
+            document.getElementById('qr-display').classList.add('hidden');
+            document.getElementById('qr-loading').classList.remove('hidden');
+            document.getElementById('generate-btn').disabled = true;
+
+            const formData = new FormData();
+            formData.append('content', content);
+            formData.append('mode', currentMode);
+            formData.append('access_code', accessCode);
+            formData.append('size', size);
+            formData.append('error_correction', errorCorrection);
+
+            if (currentMode === 'listening') {
+                formData.append('audio_filename', document.getElementById('audio-filename').value);
+                formData.append('audio_path', document.getElementById('audio-path').value);
+                formData.append('audio_size', document.getElementById('audio-size').value);
+            }
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '生成失败');
+                }
+
+                const data = await response.json();
+                currentQRData = data;
+
+                // 显示二维码
+                document.getElementById('qr-loading').classList.add('hidden');
+                document.getElementById('qr-display').classList.remove('hidden');
+                document.getElementById('qr-image').src = data.qr_code_data_url;
+
+                // 显示信息
+                const infoDiv = document.getElementById('qr-info');
+                if (data.mode === 'static') {
+                    infoDiv.textContent = '静态码模式（无需网络）';
+                } else {
+                    infoDiv.textContent = `活码模式 · 访问码: ${data.short_id}`;
+                }
+
+            } catch (error) {
+                document.getElementById('qr-loading').classList.add('hidden');
+                document.getElementById('qr-placeholder').classList.remove('hidden');
+                showError(error.message);
+            } finally {
+                document.getElementById('generate-btn').disabled = false;
+            }
+        }
+
+        // 下载二维码
+        function downloadQR() {
+            if (!currentQRData) return;
+
+            const link = document.createElement('a');
+            link.href = currentQRData.qr_code_data_url;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            link.download = `作业_${timestamp}.png`;
+            link.click();
+        }
+
+        // 显示错误
+        function showError(message) {
+            const toast = document.getElementById('error-toast');
+            document.getElementById('error-message').textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            for (const unit of ['B', 'KB', 'MB', 'GB']) {
+                if (bytes < 1024) {
+                    return `${bytes.toFixed(1)} ${unit}`;
+                }
+                bytes /= 1024;
+            }
+            return `${bytes.toFixed(1)} TB`;
+        }
+    </script>
+</body>
+</html>

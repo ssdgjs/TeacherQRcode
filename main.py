@@ -1,0 +1,350 @@
+"""
+EduQR Lite - 简易作业二维码生成器
+FastAPI 主应用
+"""
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from pydantic import BaseModel
+from sqlalchemy import select
+
+from models import (
+    init_db, get_session, HomeworkItem, HomeworkCreate,
+    HomeworkResponse, delete_expired_homeworks, get_homework_by_short_id,
+    save_homework, delete_homework
+)
+from utils import (
+    generate_short_id, generate_qr_code, extract_title,
+    render_markdown, sanitize_markdown, format_file_size,
+    format_timestamp, validate_content_length, validate_audio_file,
+    get_recommended_mode
+)
+from pydantic_settings import BaseSettings
+
+
+# ==================== Configuration ====================
+class Settings(BaseSettings):
+    """应用配置"""
+    admin_password: str = "changeme"
+    base_url: str = "http://localhost:8000"
+    data_retention_days: int = 30
+    max_content_length: int = 10000
+    max_upload_size_mb: int = 20
+    allowed_audio_extensions: str = "mp3,wav,m4a,ogg"  # 改为字符串
+    qr_code_size: int = 300
+    qr_error_correction: str = "M"
+
+    class Config:
+        env_file = ".env"
+
+    @property
+    def allowed_extensions_list(self) -> list:
+        """将字符串转换为列表"""
+        return [ext.strip() for ext in self.allowed_audio_extensions.split(',')]
+
+
+settings = Settings()
+
+
+# ==================== FastAPI App ====================
+app = FastAPI(
+    title="EduQR Lite",
+    description="简易作业二维码生成器",
+    version="1.1.0"
+)
+
+# 初始化数据库
+init_db()
+
+# 获取项目根目录
+BASE_DIR = Path(__file__).resolve().parent
+
+# 创建必要的目录（支持本地和 Docker 环境）
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(BASE_DIR / "static" / "uploads")))
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", str(BASE_DIR / "static" / "output")))
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# 挂载静态文件
+static_dir = Path(os.getenv("STATIC_DIR", str(BASE_DIR / "static")))
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# 模板引擎
+templates_dir = Path(os.getenv("TEMPLATES_DIR", str(BASE_DIR / "templates")))
+templates = Jinja2Templates(directory=str(templates_dir))
+
+
+# ==================== Startup Event ====================
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时执行"""
+    print("=" * 50)
+    print("🚀 EduQR Lite 启动成功！")
+    print(f"📡 Base URL: {settings.base_url}")
+    print(f"🔒 Admin Password: {'已设置' if settings.admin_password != 'changeme' else '警告：使用默认密码'}")
+    print(f"📁 Upload Directory: {UPLOAD_DIR}")
+    print(f"📅 Data Retention: {settings.data_retention_days} 天")
+    print("=" * 50)
+
+    # 清理过期数据
+    try:
+        with next(get_session()) as session:
+            deleted_count = delete_expired_homeworks(session, days=settings.data_retention_days)
+            if deleted_count > 0:
+                print(f"🗑️  已清理 {deleted_count} 条过期作业记录")
+    except Exception as e:
+        print(f"⚠️  清理过期数据时出错: {e}")
+
+
+# ==================== Health Check ====================
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+# ==================== Main Page ====================
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """首页 - 二维码生成器"""
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "app_name": "EduQR Lite",
+            "default_size": settings.qr_code_size,
+            "default_error_correction": settings.qr_error_correction,
+            "max_upload_size_mb": settings.max_upload_size_mb,
+            "allowed_extensions": settings.allowed_audio_extensions
+        }
+    )
+
+
+# ==================== View Homework (Student) ====================
+@app.get("/v/{short_id}", response_class=HTMLResponse)
+async def view_homework(request: Request, short_id: str):
+    """查看作业（学生扫码后跳转的页面）"""
+    session = next(get_session())
+    homework = get_homework_by_short_id(session, short_id)
+
+    if not homework:
+        return templates.TemplateResponse(
+            "view.html",
+            {
+                "request": request,
+                "error": "作业不存在或已过期",
+                "short_id": short_id
+            },
+            status_code=404
+        )
+
+    # 渲染 Markdown 内容
+    rendered_content = render_markdown(homework.content)
+    title = homework.title or extract_title(homework.content)
+
+    return templates.TemplateResponse(
+        "view.html",
+        {
+            "request": request,
+            "homework": homework,
+            "title": title,
+            "rendered_content": rendered_content,
+            "formatted_time": format_timestamp(homework.created_at),
+            "formatted_audio_size": format_file_size(homework.audio_size) if homework.audio_size else None
+        }
+    )
+
+
+# ==================== API Routes ====================
+@app.post("/api/upload-audio")
+async def upload_audio(file: UploadFile = File(...)):
+    """
+    上传音频文件
+
+    Returns:
+        JSON: 文件信息（filename, path, size, url）
+    """
+    # 验证文件大小
+    content = await file.read()
+    file_size = len(content)
+
+    # 重置文件指针
+    await file.seek(0)
+
+    # 验证文件
+    is_valid, error_msg = validate_audio_file(
+        file.filename,
+        file_size,
+        settings.max_upload_size_mb,
+        settings.allowed_extensions_list
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    # 生成文件路径（按日期组织）
+    date_path = datetime.now().strftime("%Y/%m")
+    filename = f"{generate_short_id(12)}_{file.filename}"
+    relative_path = f"{date_path}/{filename}"
+    full_path = UPLOAD_DIR / date_path
+    full_path.mkdir(parents=True, exist_ok=True)
+
+    file_path = full_path / filename
+
+    # 保存文件
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    # 返回文件信息
+    file_url = f"{settings.base_url}/static/uploads/{relative_path}"
+
+    return {
+        "success": True,
+        "filename": file.filename,
+        "path": relative_path,
+        "size": file_size,
+        "url": file_url
+    }
+
+
+@app.post("/api/generate")
+async def generate_qrcode(
+    request: Request,
+    content: str = Form(""),
+    mode: str = Form("static"),
+    access_code: str = Form(""),
+    size: int = Form(settings.qr_code_size),
+    error_correction: str = Form(settings.qr_error_correction),
+    audio_filename: Optional[str] = Form(None),
+    audio_path: Optional[str] = Form(None),
+    audio_size: Optional[int] = Form(None),
+):
+    """
+    生成二维码
+
+    Args:
+        content: 作业内容
+        mode: 模式 ('static', 'text', 'listening')
+        access_code: 管理暗号
+        size: 二维码尺寸
+        error_correction: 容错率
+        audio_filename: 音频文件名（听力模式）
+        audio_path: 音频文件路径
+        audio_size: 音频文件大小
+
+    Returns:
+        JSON: 二维码数据（Base64）和短 ID（活码模式）
+    """
+    # 验证管理暗号
+    if access_code != settings.admin_password:
+        raise HTTPException(status_code=403, detail="暗号错误，请联系教师获取")
+
+    # 验证内容（Form 参数为空时会是空字符串，不是 None）
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="内容不能为空")
+
+    # 验证长度
+    is_valid, error_msg = validate_content_length(content, settings.max_content_length)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    # 生成二维码
+    if mode == "static":
+        # 静态码：直接编码文本
+        qr_data_url = generate_qr_code(content, size, error_correction)
+        return {
+            "success": True,
+            "mode": "static",
+            "qr_code_data_url": qr_data_url,
+            "short_id": None
+        }
+
+    else:
+        # 活码模式：保存到数据库，生成 URL
+        session = next(get_session())
+
+        # 生成短 ID
+        max_retries = 5
+        for _ in range(max_retries):
+            short_id = generate_short_id(8)
+            existing = get_homework_by_short_id(session, short_id)
+            if not existing:
+                break
+        else:
+            raise HTTPException(status_code=500, detail="生成短 ID 失败，请重试")
+
+        # 提取标题
+        title = extract_title(content)
+
+        # 保存到数据库
+        homework_type = "listening" if mode == "listening" else "text"
+        save_homework(
+            session,
+            short_id=short_id,
+            content=content,
+            title=title,
+            audio_path=audio_path,
+            audio_filename=audio_filename,
+            audio_size=audio_size,
+            homework_type=homework_type
+        )
+
+        # 生成活码 URL
+        view_url = f"{settings.base_url}/v/{short_id}"
+        qr_data_url = generate_qr_code(view_url, size, error_correction)
+
+        return {
+            "success": True,
+            "mode": mode,
+            "qr_code_data_url": qr_data_url,
+            "short_id": short_id,
+            "view_url": view_url
+        }
+
+
+@app.get("/api/stats")
+async def get_stats(access_code: str):
+    """
+    获取统计信息（需验证暗号）
+    """
+    if access_code != settings.admin_password:
+        raise HTTPException(status_code=403, detail="暗号错误")
+
+    session = next(get_session())
+    total_count = len(list(session.exec(select(HomeworkItem)).all()))
+
+    # 计算上传文件总大小
+    uploads_size = sum(
+        f.stat().st_size for f in UPLOAD_DIR.rglob('*') if f.is_file()
+    )
+
+    return {
+        "success": True,
+        "total_homeworks": total_count,
+        "uploads_size_bytes": uploads_size,
+        "uploads_size_formatted": format_file_size(uploads_size)
+    }
+
+
+# ==================== Error Handlers ====================
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """统一错误处理"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.detail}
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

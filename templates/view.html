@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - EduQR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 基础样式优化 */
+        body {
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        /* Markdown 内容样式 */
+        .markdown-content h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .markdown-content h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        .markdown-content p {
+            margin-bottom: 0.75rem;
+        }
+        .markdown-content ul, .markdown-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .markdown-content li {
+            margin-bottom: 0.25rem;
+        }
+        .markdown-content a {
+            color: #0d9488;
+            text-decoration: underline;
+        }
+        .markdown-content strong {
+            font-weight: 600;
+        }
+        .markdown-content code {
+            background-color: #f3f4f6;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+        .markdown-content pre {
+            background-color: #f3f4f6;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 0.75rem;
+        }
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
+        /* 音频播放器样式 */
+        audio {
+            width: 100%;
+            max-width: 400px;
+            height: 40px;
+        }
+
+        /* 加载动画 */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0d9488;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {% if error %}
+    <!-- Error Page -->
+    <div class="min-h-screen flex items-center justify-center px-4">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+            <svg class="mx-auto h-16 w-16 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h1 class="mt-4 text-xl font-bold text-gray-900">作业不存在</h1>
+            <p class="mt-2 text-gray-600">{{ error }}</p>
+            <p class="mt-4 text-sm text-gray-500">请确认二维码是否正确，或联系老师</p>
+        </div>
+    </div>
+    {% else %}
+    <!-- Homework Display -->
+    <div class="max-w-2xl mx-auto bg-white min-h-screen shadow-sm">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-teal-600 to-teal-700 text-white px-4 py-6">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-bold">{{ title }}</h1>
+                {% if homework.homework_type == 'listening' %}
+                <span class="text-xs bg-white/20 px-2 py-1 rounded-full">🎧 听力作业</span>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Content -->
+        <main class="px-4 py-6">
+            <!-- Audio Player (Listening Mode) -->
+            {% if homework.audio_path %}
+            <div class="mb-6 bg-teal-50 rounded-lg p-4">
+                <div class="flex items-center mb-3">
+                    <svg class="h-5 w-5 text-teal-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                    <span class="font-medium text-teal-900">听力音频</span>
+                    {% if formatted_audio_size %}
+                    <span class="ml-auto text-sm text-teal-600">{{ formatted_audio_size }}</span>
+                    {% endif %}
+                </div>
+                <audio controls preload="metadata">
+                    <source src="/static/uploads/{{ homework.audio_path }}" type="audio/mpeg">
+                    <source src="/static/uploads/{{ homework.audio_path }}" type="audio/wav">
+                    <source src="/static/uploads/{{ homework.audio_path }}" type="audio/mp4">
+                    您的浏览器不支持音频播放
+                </audio>
+                <p class="mt-2 text-xs text-teal-700">点击播放按钮收听音频</p>
+            </div>
+            {% endif %}
+
+            <!-- Markdown Content -->
+            <div class="markdown-content text-gray-800">
+                {{ rendered_content|safe }}
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-100 border-t border-gray-200 px-4 py-4">
+            <div class="flex items-center justify-between text-sm text-gray-600">
+                <span>{{ formatted_time }}</span>
+                <span class="text-xs">由 EduQR 生成</span>
+            </div>
+        </footer>
+    </div>
+    {% endif %}
+</body>
+</html>
