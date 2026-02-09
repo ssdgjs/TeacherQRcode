@@ -380,6 +380,14 @@
                         </div>
                     </div>
                 </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Theme Toggle -->
+                    <button id="theme-toggle" onclick="themeManager.toggle()" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-2 transition-all" title="切换主题">
+                        <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="hidden md:block text-right slide-in">
                     <!-- 历史记录按钮 -->
                     <a href="/history" class="inline-block bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-4 py-2 mb-2 transition-all">
@@ -671,6 +679,86 @@
     </div>
 
     <script>
+        // ==================== Theme Manager ====================
+        class ThemeManager {
+            constructor() {
+                this.currentTheme = this.getStoredTheme() || this.getSystemTheme();
+                this.init();
+            }
+
+            getStoredTheme() {
+                return localStorage.getItem('theme');
+            }
+
+            getSystemTheme() {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+
+            init() {
+                this.applyTheme(this.currentTheme);
+                this.listenForSystemChanges();
+            }
+
+            applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.body.classList.remove('bg-gray-50');
+                    document.body.classList.add('bg-gray-900');
+                    // Update other elements for dark mode
+                    this.updateCards(true);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    document.body.classList.remove('bg-gray-900');
+                    document.body.classList.add('bg-gray-50');
+                    this.updateCards(false);
+                }
+                localStorage.setItem('theme', theme);
+                this.currentTheme = theme;
+                this.updateToggleButton();
+            }
+
+            updateCards(isDark) {
+                const cards = document.querySelectorAll('.bg-white');
+                cards.forEach(card => {
+                    if (isDark) {
+                        card.classList.remove('bg-white');
+                        card.classList.add('bg-gray-800', 'text-gray-100');
+                    } else {
+                        card.classList.remove('bg-gray-800', 'text-gray-100');
+                        card.classList.add('bg-white');
+                    }
+                });
+            }
+
+            toggle() {
+                const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+                this.applyTheme(newTheme);
+            }
+
+            updateToggleButton() {
+                const toggle = document.getElementById('theme-toggle');
+                if (!toggle) return;
+
+                const icon = toggle.querySelector('svg');
+                if (this.currentTheme === 'dark') {
+                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+                } else {
+                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+                }
+            }
+
+            listenForSystemChanges() {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                    if (!this.getStoredTheme()) {
+                        this.applyTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+            }
+        }
+
+        // Initialize theme manager
+        const themeManager = new ThemeManager();
+
         let currentMode = 'static';
         let currentQRData = null;
 

@@ -133,6 +133,25 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+# ==================== SEO Routes ====================
+@app.get("/robots.txt")
+async def robots_txt():
+    """Robots.txt"""
+    robots_path = Path(os.getenv("STATIC_DIR", str(BASE_DIR / "static"))) / "robots.txt"
+    if robots_path.exists():
+        return FileResponse(robots_path)
+    return FileResponse(BASE_DIR / "static" / "robots.txt")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """Sitemap.xml"""
+    sitemap_path = Path(os.getenv("STATIC_DIR", str(BASE_DIR / "static"))) / "sitemap.xml"
+    if sitemap_path.exists():
+        return FileResponse(sitemap_path)
+    return FileResponse(BASE_DIR / "static" / "sitemap.xml")
+
+
 # ==================== Authentication Routes ====================
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
