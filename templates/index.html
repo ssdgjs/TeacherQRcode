@@ -381,6 +381,21 @@
                     </div>
                 </div>
                 <div class="hidden md:block text-right slide-in">
+                    <!-- 用户额度显示 -->
+                    <div id="quota-display" class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 mb-2">
+                        <div id="quota-loading" class="text-xs text-teal-100">加载中...</div>
+                        <div id="quota-content" class="hidden">
+                            <p class="text-xs text-teal-100">
+                                <span id="quota-free">免费: 0/10</span>
+                            </p>
+                            <p class="text-xs text-teal-100 mt-1">
+                                <span id="quota-purchased">购买: 0次</span>
+                            </p>
+                            <p id="quota-subscription" class="text-xs text-yellow-200 mt-1 hidden">
+                                ⭐ 月卡用户
+                            </p>
+                        </div>
+                    </div>
                     <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
                         <p class="text-xs text-teal-100">✨ 极简体验</p>
                         <p class="text-xs text-teal-100 mt-1">🚀 私有化部署</p>
@@ -678,7 +693,69 @@
             switchMode('static');
             setupFileUpload();
             setupKeyboardShortcuts();
+            loadQuota(); // 加载用户额度
         });
+
+        // 加载用户额度
+        async function loadQuota() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                // 未登录，隐藏额度显示
+                document.getElementById('quota-display').style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/quota', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateQuotaDisplay(data.data);
+                    }
+                } else {
+                    // Token可能过期，清除本地存储
+                    localStorage.removeItem('access_token');
+                    document.getElementById('quota-display').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('加载额度失败:', error);
+                document.getElementById('quota-display').style.display = 'none';
+            }
+        }
+
+        // 更新额度显示
+        function updateQuotaDisplay(quota) {
+            const loadingEl = document.getElementById('quota-loading');
+            const contentEl = document.getElementById('quota-content');
+
+            loadingEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+
+            // 更新免费次数
+            const freeEl = document.getElementById('quota-free');
+            const freeRemaining = quota.free_limit - quota.free_used_today;
+            freeEl.textContent = `免费: ${freeRemaining}/${quota.free_limit}`;
+
+            // 更新购买次数
+            const purchasedEl = document.getElementById('quota-purchased');
+            purchasedEl.textContent = `购买: ${quota.purchased_count}次`;
+
+            // 更新订阅状态
+            const subscriptionEl = document.getElementById('quota-subscription');
+            if (quota.is_subscriber) {
+                subscriptionEl.classList.remove('hidden');
+                const expiresDate = new Date(quota.subscription_expires_at);
+                const expiresStr = `${expiresDate.getMonth() + 1}月${expiresDate.getDate()}日`;
+                subscriptionEl.textContent = `⭐ 月卡有效期至 ${expiresStr}`;
+            } else {
+                subscriptionEl.classList.add('hidden');
+            }
+        }
 
         // 设置键盘快捷键
         function setupKeyboardShortcuts() {

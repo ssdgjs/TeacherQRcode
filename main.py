@@ -18,13 +18,19 @@ from models import (
     init_db, get_session, HomeworkItem, HomeworkCreate,
     HomeworkResponse, delete_expired_homeworks, get_homework_by_short_id,
     save_homework, delete_homework, User, UserResponse,
-    get_user_by_email, create_user, update_last_login
+    get_user_by_email, create_user, update_last_login,
+    get_user_by_id, QuotaResponse, QuotaConsumeResponse
 )
 from auth import (
     UserLogin, UserRegister, Token, get_current_user,
     create_access_token, verify_password, get_password_hash,
     validate_password_strength, validate_email
 )
+from quota import (
+    get_quota_info, can_consume_quota, consume_user_quota,
+    add_quota, activate_subscription
+)
+from tasks import start_scheduler, get_scheduler_info
 from utils import (
     generate_short_id, generate_qr_code, extract_title,
     render_markdown, sanitize_markdown, format_file_size,
@@ -94,7 +100,7 @@ templates = Jinja2Templates(directory=str(templates_dir))
 async def startup_event():
     """应用启动时执行"""
     print("=" * 50)
-    print("🚀 EduQR Lite 启动成功！")
+    print("🚀 EduQR AI 启动成功！")
     print(f"📡 Base URL: {settings.base_url}")
     print(f"🔒 Admin Password: {'已设置' if settings.admin_password != 'changeme' else '警告：使用默认密码'}")
     print(f"📁 Upload Directory: {UPLOAD_DIR}")
@@ -109,6 +115,13 @@ async def startup_event():
                 print(f"🗑️  已清理 {deleted_count} 条过期作业记录")
     except Exception as e:
         print(f"⚠️  清理过期数据时出错: {e}")
+
+    # 启动定时任务调度器
+    try:
+        start_scheduler()
+        print("🕐 定时任务调度器已启动")
+    except Exception as e:
+        print(f"⚠️  启动定时任务调度器失败: {e}")
 
 
 # ==================== Health Check ====================
@@ -173,6 +186,11 @@ async def register(user_data: UserRegister):
         # 创建新用户
         password_hash = get_password_hash(user_data.password)
         new_user = create_user(session, user_data.email, password_hash)
+
+        # 自动创建额度记录
+        from quota import get_or_create_quota
+        from models import create_user_quota
+        quota = create_user_quota(session, new_user.id)
 
         # 生成 JWT token
         token_data = {
@@ -271,6 +289,72 @@ async def get_current_user_info(current_user = Depends(get_current_user)):
             "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
         }
     }
+
+
+# ==================== Quota Management Routes ====================
+@app.get("/api/v1/quota")
+async def get_user_quota_info(current_user = Depends(get_current_user)):
+    """
+    获取当前用户额度信息
+
+    Args:
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 额度信息（免费次数、购买次数、订阅状态）
+    """
+    session = next(get_session())
+    user = get_user_by_id(session, current_user.user_id)
+
+    if not user:
+        return {"success": False, "error": "用户不存在"}
+
+    try:
+        quota_info = get_quota_info(session, user)
+        return {"success": True, "data": quota_info}
+    except Exception as e:
+        return {"success": False, "error": f"获取额度信息失败: {str(e)}"}
+
+
+@app.post("/api/v1/quota/consume")
+async def consume_user_quota_endpoint(current_user = Depends(get_current_user)):
+    """
+    消费用户额度（AI生成时调用）
+
+    Args:
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 消费结果（剩余额度、消费类型）
+    """
+    session = next(get_session())
+
+    try:
+        success, message, result = consume_user_quota(session, current_user.user_id)
+
+        if not success:
+            raise HTTPException(status_code=403, detail=message)
+
+        return {"success": True, "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"success": False, "error": f"消费额度失败: {str(e)}"}
+
+
+@app.get("/api/v1/scheduler/info")
+async def get_scheduler_status():
+    """
+    获取定时任务状态（管理员用）
+
+    Returns:
+        JSON: 调度器状态和任务列表
+    """
+    try:
+        info = get_scheduler_info()
+        return {"success": True, "data": info}
+    except Exception as e:
+        return {"success": False, "error": f"获取调度器信息失败: {str(e)}"}
 
 
 # ==================== Main Page ====================

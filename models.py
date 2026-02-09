@@ -1,7 +1,7 @@
 """
 数据模型定义 - PostgreSQL
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import SQLModel, Field, Session, select
 from pydantic import BaseModel
@@ -17,6 +17,34 @@ class User(SQLModel, table=True):
     password_hash: str = Field(max_length=255)
     created_at: datetime = Field(default_factory=datetime.now)
     last_login_at: Optional[datetime] = None
+
+
+class Quota(SQLModel, table=True):
+    """用户额度表"""
+    __tablename__ = "quotas"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", unique=True, index=True)
+    free_used_today: int = Field(default=0, description="今日已用免费次数")
+    free_reset_date: Optional[datetime] = Field(default=None, description="上次重置日期")
+    purchased_count: int = Field(default=0, description="已购买次数")
+    subscription_expires_at: Optional[datetime] = Field(default=None, description="订阅到期时间")
+    updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
+
+
+class Order(SQLModel, table=True):
+    """订单表"""
+    __tablename__ = "orders"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    order_no: str = Field(unique=True, index=True, max_length=64, description="订单号")
+    type: str = Field(max_length=20, description="订单类型：package或subscription")
+    amount: int = Field(description="金额（分）")
+    status: str = Field(default="pending", max_length=20, description="订单状态：pending/paid/cancelled")
+    wechat_prepay_id: Optional[str] = Field(default=None, max_length=255, description="微信支付预支付ID")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    paid_at: Optional[datetime] = Field(default=None, description="支付时间")
 
 
 class HomeworkItem(SQLModel, table=True):
@@ -47,6 +75,44 @@ class UserResponse(BaseModel):
     email: str
     created_at: datetime
     last_login_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class QuotaResponse(BaseModel):
+    """额度响应模型"""
+    free_used_today: int
+    free_limit: int
+    purchased_count: int
+    is_subscriber: bool
+    subscription_expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class QuotaConsumeResponse(BaseModel):
+    """额度消费响应模型"""
+    remaining: int
+    type: str  # 'free', 'purchased', 'subscription'
+
+
+class OrderCreate(BaseModel):
+    """创建订单请求"""
+    type: str  # 'package' 或 'subscription'
+    amount: int  # 金额（分）
+
+
+class OrderResponse(BaseModel):
+    """订单响应模型"""
+    id: int
+    order_no: str
+    type: str
+    amount: int
+    status: str
+    created_at: datetime
+    paid_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -137,6 +203,154 @@ def update_last_login(session: Session, user: User):
     user.last_login_at = datetime.now()
     session.add(user)
     session.commit()
+
+
+# ==================== 额度操作 ====================
+def get_user_quota(session: Session, user_id: int) -> Optional[Quota]:
+    """获取用户额度"""
+    return session.query(Quota).filter(Quota.user_id == user_id).first()
+
+
+def create_user_quota(session: Session, user_id: int, free_limit: int = 10) -> Quota:
+    """创建用户额度（新用户注册时调用）"""
+    quota = Quota(
+        user_id=user_id,
+        free_used_today=0,
+        free_reset_date=datetime.now().date(),
+        purchased_count=0
+    )
+    session.add(quota)
+    session.commit()
+    session.refresh(quota)
+    return quota
+
+
+def check_daily_reset_needed(session: Session, quota: Quota) -> bool:
+    """检查是否需要每日重置"""
+    if quota.free_reset_date is None:
+        return True
+
+    today = datetime.now().date()
+    reset_date = quota.free_reset_date
+
+    if isinstance(reset_date, datetime):
+        reset_date = reset_date.date()
+
+    return today > reset_date
+
+
+def reset_daily_quota(session: Session, quota: Quota):
+    """重置每日免费额度"""
+    quota.free_used_today = 0
+    quota.free_reset_date = datetime.now().date()
+    session.add(quota)
+    session.commit()
+
+
+def consume_quota(session: Session, user_id: int, free_limit: int = 10) -> tuple[bool, str, int]:
+    """
+    消费额度
+
+    Returns:
+        tuple[bool, str, int]: (是否成功, 消费类型, 剩余额度)
+        消费类型：'free', 'purchased', 'subscription'
+    """
+    quota = get_user_quota(session, user_id)
+
+    if not quota:
+        quota = create_user_quota(session, user_id, free_limit)
+
+    # 检查是否需要每日重置
+    if check_daily_reset_needed(session, quota):
+        reset_daily_quota(session, quota)
+
+    # 1. 检查是否是订阅用户
+    if quota.subscription_expires_at:
+        if quota.subscription_expires_at > datetime.now():
+            return True, 'subscription', -1  # -1 表示无限
+
+    # 2. 使用购买次数
+    if quota.purchased_count > 0:
+        quota.purchased_count -= 1
+        session.add(quota)
+        session.commit()
+        return True, 'purchased', quota.purchased_count
+
+    # 3. 使用免费次数
+    if quota.free_used_today < free_limit:
+        quota.free_used_today += 1
+        session.add(quota)
+        session.commit()
+        return True, 'free', free_limit - quota.free_used_today
+
+    # 4. 额度不足
+    return False, 'insufficient', 0
+
+
+def add_purchased_count(session: Session, user_id: int, count: int):
+    """增加购买次数"""
+    quota = get_user_quota(session, user_id)
+    if not quota:
+        quota = create_user_quota(session, user_id)
+
+    quota.purchased_count += count
+    session.add(quota)
+    session.commit()
+
+
+def set_subscription(session: Session, user_id: int, days: int = 30):
+    """设置订阅（从今天开始，days天后到期）"""
+    quota = get_user_quota(session, user_id)
+    if not quota:
+        quota = create_user_quota(session, user_id)
+
+    # 如果已有订阅且未过期，在原基础上延长
+    if quota.subscription_expires_at and quota.subscription_expires_at > datetime.now():
+        quota.subscription_expires_at = quota.subscription_expires_at + timedelta(days=days)
+    else:
+        quota.subscription_expires_at = datetime.now() + timedelta(days=days)
+
+    session.add(quota)
+    session.commit()
+
+
+# ==================== 订单操作 ====================
+def create_order(session: Session, user_id: int, order_type: str, amount: int) -> Order:
+    """创建订单"""
+    import uuid
+    order_no = f"ORD{datetime.now().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:6].upper()}"
+
+    order = Order(
+        user_id=user_id,
+        order_no=order_no,
+        type=order_type,
+        amount=amount,
+        status='pending'
+    )
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+
+def get_order_by_no(session: Session, order_no: str) -> Optional[Order]:
+    """根据订单号获取订单"""
+    return session.query(Order).filter(Order.order_no == order_no).first()
+
+
+def update_order_paid(session: Session, order: Order, wechat_prepay_id: str = None):
+    """更新订单为已支付"""
+    order.status = 'paid'
+    order.paid_at = datetime.now()
+    if wechat_prepay_id:
+        order.wechat_prepay_id = wechat_prepay_id
+    session.add(order)
+    session.commit()
+
+
+def get_user_orders(session: Session, user_id: int, limit: int = 20, offset: int = 0):
+    """获取用户订单列表"""
+    return session.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
 
 
 # ==================== 作业操作 ====================

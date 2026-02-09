@@ -13,6 +13,9 @@ passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.6
 
+# Scheduled Tasks
+apscheduler>=3.10.0
+
 # QR Code generation
 qrcode>=7.4.2
 pillow>=10.1.0
