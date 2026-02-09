@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI生成作业 - EduQR AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(-45deg, #0d9488, #14b8a6, #0f766e, #115e59);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Toast容器 */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast {
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .toast-info {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        /* 骨架屏加载 */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 0.375rem;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #14b8a6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none; }
+
+        /* 题型选择卡片 */
+        .type-card {
+            transition: all 0.3s ease;
+        }
+
+        .type-card.selected {
+            border-color: #14b8a6;
+            background-color: #f0fdfa;
+        }
+
+        .checkbox-custom {
+            width: 1.25rem;
+            height: 1.25rem;
+            accent-color: #14b8a6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Toast容器 -->
+    <div id="toast-container"></div>
+
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-xl">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                        <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold">AI作业生成器</h1>
+                        <p class="text-teal-100 text-sm">智能生成英语练习题</p>
+                    </div>
+                </div>
+                <a href="/" class="text-white hover:text-teal-100 transition-colors">
+                    ← 返回首页
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Panel: Configuration -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">🎯 生成配置</h2>
+
+                    <form id="generateForm" class="space-y-6">
+                        <!-- 年级选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                年级
+                            </label>
+                            <select id="grade" name="grade" required
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                                <option value="">请选择年级</option>
+                                <optgroup label="小学">
+                                    <option value="小学三年级">小学三年级</option>
+                                    <option value="小学四年级">小学四年级</option>
+                                    <option value="小学五年级">小学五年级</option>
+                                    <option value="小学六年级">小学六年级</option>
+                                </optgroup>
+                                <optgroup label="初中">
+                                    <option value="初中一年级">初中一年级</option>
+                                    <option value="初中二年级" selected>初中二年级</option>
+                                    <option value="初中三年级">初中三年级</option>
+                                </optgroup>
+                                <optgroup label="高中">
+                                    <option value="高中一年级">高中一年级</option>
+                                    <option value="高中二年级">高中二年级</option>
+                                    <option value="高中三年级">高中三年级</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <!-- 主题输入 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                主题
+                            </label>
+                            <input type="text" id="topic" name="topic" required
+                                placeholder="例如：现在完成时、一般过去时、被动语态"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                            <p class="mt-1 text-xs text-gray-500">
+                                输入要考察的语法点、词汇主题或技能
+                            </p>
+                        </div>
+
+                        <!-- 难度选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                难度
+                            </label>
+                            <div class="flex space-x-4">
+                                <label class="flex items-center">
+                                    <input type="radio" name="difficulty" value="easy"
+                                        class="checkbox-custom">
+                                    <span class="ml-2">简单</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="difficulty" value="medium" checked
+                                        class="checkbox-custom">
+                                    <span class="ml-2">中等</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="difficulty" value="hard"
+                                        class="checkbox-custom">
+                                    <span class="ml-2">困难</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 题型选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                                题型与数量
+                            </label>
+                            <div class="space-y-3">
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="choice"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">📝 选择题</span>
+                                        </label>
+                                        <input type="number" name="choice_count" value="5" min="1" max="20"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="fill_blank"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">✏️ 填空题</span>
+                                        </label>
+                                        <input type="number" name="fill_blank_count" value="5" min="1" max="20"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="true_false"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">✅ 判断题</span>
+                                        </label>
+                                        <input type="number" name="true_false_count" value="5" min="1" max="20"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="reading"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">📖 阅读理解</span>
+                                        </label>
+                                        <input type="number" name="reading_count" value="2" min="1" max="10"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="listening"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">🎧 听力题</span>
+                                        </label>
+                                        <input type="number" name="listening_count" value="3" min="1" max="20"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+
+                                <div class="type-card border-2 border-gray-200 rounded-lg p-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center flex-1">
+                                            <input type="checkbox" name="question_type" value="essay"
+                                                class="checkbox-custom">
+                                            <span class="ml-3">✍️ 作文</span>
+                                        </label>
+                                        <input type="number" name="essay_count" value="1" min="1" max="10"
+                                            class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 生成按钮 -->
+                        <button type="submit" id="generateBtn"
+                            class="w-full bg-gradient-to-r from-teal-600 to-teal-500 text-white font-semibold py-4 px-6 rounded-xl hover:from-teal-700 hover:to-teal-600 transition-all duration-200 flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            <span id="generateBtnText">开始生成</span>
+                            <div id="generateSpinner" class="spinner ml-2 hidden"></div>
+                        </button>
+                    </form>
+
+                    <!-- 额度提示 -->
+                    <div class="mt-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
+                        <p class="text-sm text-teal-800">
+                            💡 <strong>提示</strong>：每次生成将消费1次额度
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Results -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">📚 生成结果</h2>
+
+                    <!-- 初始提示 -->
+                    <div id="result-placeholder" class="text-center py-12">
+                        <svg class="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <p class="text-gray-400">配置参数后点击"开始生成"</p>
+                        <p class="text-sm text-gray-400 mt-2">AI将为您生成专业的英语练习题</p>
+                    </div>
+
+                    <!-- 加载中 -->
+                    <div id="result-loading" class="hidden py-12">
+                        <div class="flex flex-col items-center">
+                            <div class="spinner mb-4" style="width: 48px; height: 48px;"></div>
+                            <p class="text-gray-600">AI正在生成作业，请稍候...</p>
+                            <p class="text-sm text-gray-400 mt-2">这可能需要10-30秒</p>
+                        </div>
+                    </div>
+
+                    <!-- 生成结果 -->
+                    <div id="result-content" class="hidden space-y-6">
+                        <!-- 动态填充 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Toast通知函数
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ'
+            };
+
+            toast.innerHTML = `
+                <span class="text-xl mr-3">${icons[type]}</span>
+                <span class="font-medium">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 题型卡片选中效果
+        document.querySelectorAll('.type-card input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const card = this.closest('.type-card');
+                if (this.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        });
+
+        // 表单提交
+        document.getElementById('generateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // 获取表单数据
+            const grade = document.getElementById('grade').value;
+            const topic = document.getElementById('topic').value;
+            const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+
+            // 获取选中的题型和数量
+            const questionTypes = [];
+            document.querySelectorAll('input[name="question_type"]:checked').forEach(checkbox => {
+                const type = checkbox.value;
+                const countInput = document.querySelector(`input[name="${type}_count"]`);
+                if (countInput) {
+                    questionTypes.push({
+                        type: type,
+                        count: parseInt(countInput.value)
+                    });
+                }
+            });
+
+            // 验证
+            if (!grade) {
+                showToast('请选择年级', 'error');
+                return;
+            }
+
+            if (!topic) {
+                showToast('请输入主题', 'error');
+                return;
+            }
+
+            if (questionTypes.length === 0) {
+                showToast('请至少选择一种题型', 'error');
+                return;
+            }
+
+            // 禁用按钮，显示加载
+            const generateBtn = document.getElementById('generateBtn');
+            const generateBtnText = document.getElementById('generateBtnText');
+            const generateSpinner = document.getElementById('generateSpinner');
+
+            generateBtn.disabled = true;
+            generateBtnText.textContent = '生成中...';
+            generateSpinner.classList.remove('hidden');
+
+            // 显示加载界面
+            document.getElementById('result-placeholder').classList.add('hidden');
+            document.getElementById('result-loading').classList.remove('hidden');
+            document.getElementById('result-content').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/v1/homework/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify({
+                        grade,
+                        topic,
+                        difficulty,
+                        question_types: questionTypes
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    displayResults(data.data);
+                    showToast('作业生成成功！', 'success');
+                } else {
+                    showToast(data.error || '生成失败，请重试', 'error');
+                    document.getElementById('result-placeholder').classList.remove('hidden');
+                    document.getElementById('result-loading').classList.add('hidden');
+                }
+
+            } catch (error) {
+                console.error('Generate error:', error);
+                showToast('网络错误，请稍后重试', 'error');
+                document.getElementById('result-placeholder').classList.remove('hidden');
+                document.getElementById('result-loading').classList.add('hidden');
+            } finally {
+                // 恢复按钮状态
+                generateBtn.disabled = false;
+                generateBtnText.textContent = '开始生成';
+                generateSpinner.classList.add('hidden');
+            }
+        });
+
+        // 显示生成结果
+        function displayResults(data) {
+            const resultContent = document.getElementById('result-content');
+            resultContent.innerHTML = '';
+            resultContent.classList.remove('hidden');
+            document.getElementById('result-loading').classList.add('hidden');
+
+            const homework = data.homework;
+
+            // 标题
+            const titleHtml = `
+                <div class="bg-gradient-to-r from-teal-50 to-teal-100 rounded-lg p-4 mb-6">
+                    <h3 class="text-lg font-semibold text-teal-900">${homework.grade} - ${homework.topic}</h3>
+                    <p class="text-sm text-teal-700 mt-1">难度：${homework.difficulty === 'easy' ? '简单' : homework.difficulty === 'medium' ? '中等' : '困难'}</p>
+                    ${data.quota_remaining !== undefined ? `<p class="text-sm text-teal-600 mt-1">剩余额度：${data.quota_remaining === -1 ? '无限' : data.quota_remaining + '次'}</p>` : ''}
+                </div>
+            `;
+            resultContent.innerHTML += titleHtml;
+
+            // 题目
+            if (homework.questions && homework.questions.length > 0) {
+                homework.questions.forEach((item, index) => {
+                    if (item.error) {
+                        resultContent.innerHTML += `<div class="text-red-500 mb-4">${item.error}</div>`;
+                        return;
+                    }
+
+                    const typeTitle = getTypeTitle(item.type || getTypeFromQuestions(item));
+                    const questionsHtml = renderQuestions(item);
+                    resultContent.innerHTML += `
+                        <div class="border-b border-gray-200 pb-6 mb-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">${index + 1}. ${typeTitle}</h4>
+                            ${questionsHtml}
+                        </div>
+                    `;
+                });
+            }
+        }
+
+        // 获取题型标题
+        function getTypeTitle(type) {
+            const titles = {
+                'choice': '📝 选择题',
+                'fill_blank': '✏️ 填空题',
+                'true_false': '✅ 判断题',
+                'reading': '📖 阅读理解',
+                'listening': '🎧 听力题',
+                'essay': '✍️ 作文'
+            };
+            return titles[type] || '其他题型';
+        }
+
+        // 从问题中推断题型
+        function getTypeFromQuestions(item) {
+            if (item.passage) return 'reading';
+            if (item.script) return 'listening';
+            if (item.title) return 'essay';
+            if (item.statement) return 'true_false';
+            if (item.sentence) return 'fill_blank';
+            if (item.options) return 'choice';
+            return 'unknown';
+        }
+
+        // 渲染题目
+        function renderQuestions(item) {
+            let html = '';
+
+            // 阅读理解
+            if (item.passage) {
+                html += `
+                    <div class="mb-4">
+                        <h5 class="font-medium text-gray-700 mb-2">${item.title || '阅读材料'}</h5>
+                        <div class="bg-gray-50 rounded-lg p-4 text-gray-700 leading-relaxed">
+                            ${item.passage}
+                        </div>
+                    </div>
+                `;
+                const questions = item.questions || [];
+                questions.forEach((q, i) => {
+                    html += renderSingleQuestion(q, i + 1);
+                });
+                return html;
+            }
+
+            // 其他题型（多个题目）
+            const questions = item.questions || [item];
+            questions.forEach((q, i) => {
+                html += renderSingleQuestion(q, i + 1);
+            });
+
+            return html;
+        }
+
+        // 渲染单个题目
+        function renderSingleQuestion(q, index) {
+            let html = `<div class="mb-4 p-4 bg-gray-50 rounded-lg">`;
+            html += `<p class="font-medium text-gray-800 mb-3">${index}. ${renderQuestionText(q)}</p>`;
+
+            // 选项
+            if (q.options && q.options.length > 0) {
+                html += `<div class="space-y-2 ml-4">`;
+                q.options.forEach(opt => {
+                    html += `<p class="text-gray-700">${opt}</p>`;
+                });
+                html += `</div>`;
+            }
+
+            // 答案和解析
+            html += `
+                <details class="mt-3">
+                    <summary class="cursor-pointer text-teal-600 hover:text-teal-700 text-sm font-medium">
+                        查看答案和解析
+                    </summary>
+                    <div class="mt-2 p-3 bg-teal-50 rounded text-sm">
+                        <p class="font-medium text-teal-900">答案: ${q.answer || q.statement || 'N/A'}</p>
+                        ${q.explanation ? `<p class="text-teal-700 mt-2">${q.explanation}</p>` : ''}
+                    </div>
+                </details>
+            `;
+
+            html += `</div>`;
+            return html;
+        }
+
+        // 渲染问题文本
+        function renderQuestionText(q) {
+            if (q.question) return q.question;
+            if (q.statement) return q.statement;
+            if (q.sentence) return q.sentence;
+            if (q.script) return `<div class="bg-blue-50 p-3 rounded mb-3 text-blue-900">${q.script.replace(/\\n/g, '<br>')}</div>${q.question}`;
+            if (q.title) return `<strong>${q.title}</strong><br><br>${q.requirements}<br><br>字数：${q.word_count}`;
+            return JSON.stringify(q);
+        }
+
+        // 检查登录状态
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                showToast('请先登录', 'info');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 1500);
+            }
+        });
+    </script>
+</body>
+</html>

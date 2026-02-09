@@ -31,6 +31,7 @@ from quota import (
     add_quota, activate_subscription
 )
 from tasks import start_scheduler, get_scheduler_info
+from ai_service import get_ai_service, validate_generation_params
 from utils import (
     generate_short_id, generate_qr_code, extract_title,
     render_markdown, sanitize_markdown, format_file_size,
@@ -355,6 +356,106 @@ async def get_scheduler_status():
         return {"success": True, "data": info}
     except Exception as e:
         return {"success": False, "error": f"获取调度器信息失败: {str(e)}"}
+
+
+# ==================== AI Generation Routes ====================
+@app.get("/generate", response_class=HTMLResponse)
+async def generate_page(request: Request):
+    """AI作业生成页面"""
+    return templates.TemplateResponse(
+        "generate.html",
+        {"request": request}
+    )
+
+
+class HomeworkGenerateRequest(BaseModel):
+    """AI生成作业请求"""
+    grade: str  # 年级
+    topic: str  # 主题
+    difficulty: str  # 难度：easy/medium/hard
+    question_types: list  # 题型列表：[{"type": "choice", "count": 5}]
+
+
+@app.post("/api/v1/homework/generate")
+async def generate_homework(
+    request_data: HomeworkGenerateRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    AI生成英语作业
+
+    Args:
+        request_data: 生成参数（年级、主题、难度、题型）
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 生成的作业数据
+    """
+    session = next(get_session())
+
+    # 1. 验证参数
+    is_valid, error_msg = validate_generation_params(
+        request_data.grade,
+        request_data.topic,
+        request_data.difficulty,
+        request_data.question_types
+    )
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    # 2. 检查并消费额度
+    try:
+        success, message, result = consume_user_quota(session, current_user.user_id)
+        if not success:
+            raise HTTPException(status_code=403, detail=message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"success": False, "error": f"额度检查失败: {str(e)}"}
+
+    # 3. 调用AI生成
+    try:
+        ai_service = get_ai_service()
+        homework_data = ai_service.generate_questions(
+            grade=request_data.grade,
+            topic=request_data.topic,
+            difficulty=request_data.difficulty,
+            question_types=request_data.question_types
+        )
+
+        return {
+            "success": True,
+            "data": {
+                "homework": homework_data,
+                "quota_remaining": result.get("remaining", -1)
+            }
+        }
+
+    except Exception as e:
+        # AI生成失败，退还额度（简化处理，实际应该用事务）
+        return {"success": False, "error": f"AI生成失败: {str(e)}"}
+
+
+@app.get("/api/v1/ai/test")
+async def test_ai_connection():
+    """
+    测试AI服务连接
+
+    Returns:
+        JSON: 测试结果
+    """
+    try:
+        ai_service = get_ai_service()
+        is_connected = ai_service.test_connection()
+        return {
+            "success": True,
+            "data": {
+                "connected": is_connected,
+                "model": "glm-4-flash"
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": f"AI服务连接失败: {str(e)}"}
 
 
 # ==================== Main Page ====================

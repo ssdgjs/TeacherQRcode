@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduQR Lite - 作业二维码生成器</title>
+    <title>EduQR AI - 智能英语作业生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* 自定义滚动条 */
@@ -375,14 +375,18 @@
                             </svg>
                         </div>
                         <div>
-                            <h1 class="text-3xl font-bold tracking-tight">EduQR Lite</h1>
-                            <p class="text-teal-100 mt-1 text-sm">轻量级作业二维码生成器</p>
+                            <h1 class="text-3xl font-bold tracking-tight">EduQR AI</h1>
+                            <p class="text-teal-100 mt-1 text-sm">智能英语作业生成器</p>
                         </div>
                     </div>
                 </div>
                 <div class="hidden md:block text-right slide-in">
+                    <!-- AI生成按钮 -->
+                    <a href="/generate" class="inline-block bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-4 py-2 mb-2 transition-all">
+                        <p class="text-xs text-white font-medium">🤖 AI生成作业</p>
+                    </a>
                     <!-- 用户额度显示 -->
-                    <div id="quota-display" class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 mb-2">
+                    <div id="quota-display" class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 mb-2 hidden">
                         <div id="quota-loading" class="text-xs text-teal-100">加载中...</div>
                         <div id="quota-content" class="hidden">
                             <p class="text-xs text-teal-100">
@@ -603,8 +607,8 @@
     <!-- Footer -->
     <footer class="bg-gray-800 text-gray-400 py-6 mt-12">
         <div class="container mx-auto px-4 text-center text-sm">
-            <p>EduQR Lite - 简易作业二维码生成器</p>
-            <p class="mt-1">私有化部署 · 数据完全自主掌控</p>
+            <p>EduQR AI - 智能英语作业生成器</p>
+            <p class="mt-1">AI驱动 · 私有化部署 · 数据完全自主掌控</p>
         </div>
     </footer>
 
