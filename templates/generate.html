@@ -593,16 +593,68 @@
             document.getElementById('result-loading').classList.add('hidden');
 
             const homework = data.homework;
+            const hasQRCode = data.short_id && data.qr_code_data_url;
 
-            // 标题
+            // 标题（包含二维码信息）
             const titleHtml = `
                 <div class="bg-gradient-to-r from-teal-50 to-teal-100 rounded-lg p-4 mb-6">
-                    <h3 class="text-lg font-semibold text-teal-900">${homework.grade} - ${homework.topic}</h3>
-                    <p class="text-sm text-teal-700 mt-1">难度：${homework.difficulty === 'easy' ? '简单' : homework.difficulty === 'medium' ? '中等' : '困难'}</p>
-                    ${data.quota_remaining !== undefined ? `<p class="text-sm text-teal-600 mt-1">剩余额度：${data.quota_remaining === -1 ? '无限' : data.quota_remaining + '次'}</p>` : ''}
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-teal-900">${homework.grade} - ${homework.topic}</h3>
+                            <p class="text-sm text-teal-700 mt-1">难度：${homework.difficulty === 'easy' ? '简单' : homework.difficulty === 'medium' ? '中等' : '困难'}</p>
+                            ${data.quota_remaining !== undefined ? `<p class="text-sm text-teal-600 mt-1">剩余额度：${data.quota_remaining === -1 ? '无限' : data.quota_remaining + '次'}</p>` : ''}
+                        </div>
+                        ${hasQRCode ? `
+                            <div class="flex items-center space-x-2">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                    ✓ 已保存
+                                </span>
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                    📱 可扫码
+                                </span>
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
             `;
             resultContent.innerHTML += titleHtml;
+
+            // 如果有二维码，显示二维码卡片
+            if (hasQRCode) {
+                const qrHtml = `
+                    <div class="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                            <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0 0v4m0-11h2m-6 0h-2v4m0 0v4m0 0h-2m-6 0h-2v4" />
+                            </svg>
+                            作业二维码
+                        </h4>
+                        <div class="flex flex-col md:flex-row gap-6">
+                            <div class="flex-1 flex justify-center items-center">
+                                <img src="${data.qr_code_data_url}" alt="作业二维码" class="w-48 h-48 border-4 border-teal-200 rounded-xl">
+                            </div>
+                            <div class="flex-1 space-y-3">
+                                <p class="text-sm text-gray-600">
+                                    学生扫描二维码即可查看作业
+                                </p>
+                                <p class="text-sm text-gray-500">
+                                    访问链接：<a href="${data.view_url}" target="_blank" class="text-teal-600 hover:text-teal-700 break-all">${data.view_url}</a>
+                                </p>
+                                <button onclick="downloadQR()" class="w-full bg-gradient-to-r from-teal-600 to-teal-500 text-white font-semibold py-3 px-6 rounded-lg hover:from-teal-700 hover:to-teal-600 transition-all flex items-center justify-center space-x-2">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0h6" />
+                                    </svg>
+                                    <span>下载二维码</span>
+                                </button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="qr_code_data_url" value="${data.qr_code_data_url}">
+                        <input type="hidden" id="homework_short_id" value="${data.short_id}">
+                        <input type="hidden" id="view_url" value="${data.view_url}">
+                    </div>
+                `;
+                resultContent.innerHTML += qrHtml;
+            }
 
             // 题目
             if (homework.questions && homework.questions.length > 0) {
@@ -717,6 +769,29 @@
             if (q.script) return `<div class="bg-blue-50 p-3 rounded mb-3 text-blue-900">${q.script.replace(/\\n/g, '<br>')}</div>${q.question}`;
             if (q.title) return `<strong>${q.title}</strong><br><br>${q.requirements}<br><br>字数：${q.word_count}`;
             return JSON.stringify(q);
+        }
+
+        // 下载二维码
+        function downloadQR() {
+            const qrDataUrl = document.getElementById('qr_code_data_url').value;
+            const shortId = document.getElementById('homework_short_id').value;
+
+            if (!qrDataUrl) {
+                showToast('没有可下载的二维码', 'error');
+                return;
+            }
+
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.href = qrDataUrl;
+            link.download = `homework_${shortId}.png`;
+
+            // 触发下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('二维码已下载', 'success');
         }
 
         // 检查登录状态

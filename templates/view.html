@@ -178,6 +178,237 @@
 
         <!-- Content -->
         <main class="px-4 py-6">
+            <!-- AI Generated Homework -->
+            {% if homework.homework_type == 'ai_generated' %}
+            <div id="ai-homework-container" class="space-y-6">
+                <!-- Homework Info -->
+                <div class="bg-gradient-to-r from-teal-50 to-teal-100/50 rounded-xl p-4 border border-teal-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-teal-600 font-semibold">AI生成的作业</p>
+                            <p class="text-xs text-teal-500 mt-1">
+                                {{ homework.created_at|format_timestamp if homework.created_at else '' }}
+                            </p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            {% if homework.grade %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/60 text-teal-700">
+                                {{ homework.grade }}
+                            </span>
+                            {% endif %}
+                            {% if homework.difficulty %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/60 text-teal-700">
+                                {% if homework.difficulty == 'easy' %}简单
+                                {% elif homework.difficulty == 'medium' %}中等
+                                {% else %}困难{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Questions Container -->
+                <div id="questions-container">
+                    <!-- 动态填充题目 -->
+                </div>
+            </div>
+
+            <script>
+                // 解析并渲染AI生成的作业
+                (function() {
+                    try {
+                        const content = {{ homework.content | safe }};
+                        renderAIHomework(content);
+                    } catch (error) {
+                        console.error('Failed to render AI homework:', error);
+                        document.getElementById('questions-container').innerHTML = `
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                                <p class="text-red-700">作业数据加载失败</p>
+                            </div>
+                        `;
+                    }
+
+                    function renderAIHomework(data) {
+                        const container = document.getElementById('questions-container');
+                        let sectionIndex = 0;
+
+                        if (!data.questions || !Array.isArray(data.questions)) {
+                            container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无题目</p>';
+                            return;
+                        }
+
+                        data.questions.forEach((section) => {
+                            if (section.error) {
+                                container.innerHTML += `<div class="bg-red-50 rounded-lg p-4 mb-4">${section.error}</div>`;
+                                return;
+                            }
+
+                            const typeTitle = getQuestionTypeTitle(section.type || getTypeFromSection(section));
+                            const questionsHtml = renderQuestions(section);
+
+                            const sectionDiv = document.createElement('div');
+                            sectionDiv.className = 'bg-white rounded-xl shadow-sm p-6 border border-gray-200';
+                            sectionDiv.innerHTML = `
+                                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                    <span class="mr-2">${getQuestionTypeIcon(section.type || getTypeFromSection(section))}</span>
+                                    ${sectionIndex + 1}. ${typeTitle}
+                                </h3>
+                                ${questionsHtml}
+                            `;
+                            container.appendChild(sectionDiv);
+                            sectionIndex++;
+                        });
+                    }
+
+                    function getTypeFromSection(section) {
+                        if (section.passage) return 'reading';
+                        if (section.script) return 'listening';
+                        if (section.title) return 'essay';
+                        if (section.statement) return 'true_false';
+                        if (section.sentence) return 'fill_blank';
+                        if (section.options) return 'choice';
+                        return 'unknown';
+                    }
+
+                    function getQuestionTypeIcon(type) {
+                        const icons = {
+                            'choice': '📝',
+                            'fill_blank': '✏️',
+                            'true_false': '✅',
+                            'reading': '📖',
+                            'listening': '🎧',
+                            'essay': '✍️'
+                        };
+                        return icons[type] || '📄';
+                    }
+
+                    function getQuestionTypeTitle(type) {
+                        const titles = {
+                            'choice': '选择题',
+                            'fill_blank': '填空题',
+                            'true_false': '判断题',
+                            'reading': '阅读理解',
+                            'listening': '听力题',
+                            'essay': '作文'
+                        };
+                        return titles[type] || '题目';
+                    }
+
+                    function renderQuestions(section) {
+                        let html = '';
+
+                        // 阅读理解
+                        if (section.passage) {
+                            html += `
+                                <div class="mb-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3">${section.title || '阅读材料'}</h4>
+                                    <div class="bg-gray-50 rounded-lg p-4 text-gray-700 leading-relaxed border border-gray-200">
+                                        ${section.passage}
+                                    </div>
+                                </div>
+                            `;
+                            const questions = section.questions || [];
+                            questions.forEach((q, i) => {
+                                html += renderSingleQuestion(q, i + 1, 'reading');
+                            });
+                            return html;
+                        }
+
+                        // 其他题型
+                        const questions = section.questions || [section];
+                        questions.forEach((q, i) => {
+                            html += renderSingleQuestion(q, i + 1, section.type || getTypeFromSection(section));
+                        });
+
+                        return html;
+                    }
+
+                    function renderSingleQuestion(q, index, type) {
+                        let questionHtml = '<div class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">';
+
+                        // 问题文本
+                        if (q.script) {
+                            // 听力题的脚本
+                            questionHtml += `
+                                <div class="mb-3 p-3 bg-blue-50 rounded border border-blue-200">
+                                    <p class="text-sm text-blue-900 font-medium mb-2">听力原文：</p>
+                                    <p class="text-blue-800 leading-relaxed whitespace-pre-wrap">${q.script.replace(/\\n/g, '<br>')}</p>
+                                </div>
+                            `;
+                        }
+
+                        const questionText = q.question || q.statement || q.sentence || '';
+                        if (q.title) {
+                            questionHtml += `<h5 class="font-semibold text-gray-800 mb-2">${q.title}</h5>`;
+                            questionHtml += `<p class="text-gray-700 mb-3">${q.requirements}</p>`;
+                            questionHtml += `<p class="text-sm text-gray-500 mb-3">字数：${q.word_count || 'N/A'}</p>`;
+                        } else if (q.script && q.question) {
+                            questionHtml += `<p class="font-medium text-gray-800 mb-3">${index}. ${q.question}</p>`;
+                        } else {
+                            questionHtml += `<p class="font-medium text-gray-800 mb-3">${index}. ${questionText}</p>`;
+                        }
+
+                        // 听力音频播放器
+                        if (q.audio_url) {
+                            questionHtml += `
+                                <div class="mb-3">
+                                    <audio controls preload="metadata" class="w-full">
+                                        <source src="${q.audio_url}" type="audio/mpeg">
+                                        您的浏览器不支持音频播放
+                                    </audio>
+                                </div>
+                            `;
+                        }
+
+                        // 选项
+                        if (q.options && q.options.length > 0) {
+                            questionHtml += '<div class="space-y-2 ml-4">';
+                            q.options.forEach(opt => {
+                                questionHtml += `<p class="text-gray-700">${opt}</p>`;
+                            });
+                            questionHtml += '</div>';
+                        }
+
+                        // 答案和解析（可折叠）
+                        if (q.answer || q.explanation) {
+                            questionHtml += `
+                                <details class="mt-3">
+                                    <summary class="cursor-pointer text-teal-600 hover:text-teal-700 text-sm font-medium flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        查看答案和解析
+                                    </summary>
+                                    <div class="mt-2 p-3 bg-teal-50 rounded text-sm">
+                                        ${q.answer ? `<p class="font-semibold text-teal-900">答案: ${q.answer}</p>` : ''}
+                                        ${q.explanation ? `<p class="text-teal-700 mt-2">${q.explanation}</p>` : ''}
+                                        ${q.grading_points ? `
+                                            <div class="mt-2">
+                                                <p class="font-medium text-teal-900 text-xs">评分要点：</p>
+                                                <ul class="list-disc list-inside text-xs text-teal-700 mt-1">
+                                                    ${q.grading_points.map(p => `<li>${p}</li>`).join('')}
+                                                </ul>
+                                            </div>
+                                        ` : ''}
+                                        ${q.sample ? `
+                                            <div class="mt-3 pt-3 border-t border-teal-200">
+                                                <p class="font-medium text-teal-900 text-xs">范文：</p>
+                                                <p class="text-gray-700 text-xs mt-1 leading-relaxed">${q.sample}</p>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </details>
+                            `;
+                        }
+
+                        questionHtml += '</div>';
+                        return questionHtml;
+                    }
+                })();
+            </script>
+
+            <!-- Original Markdown Content (for non-AI homework) -->
+            {% else %}
             <!-- Audio Player (Listening Mode) -->
             {% if homework.audio_path %}
             <div class="mb-6 bg-gradient-to-br from-teal-50 to-teal-100/50 rounded-xl p-5 border border-teal-200 shadow-sm">

@@ -424,10 +424,50 @@ async def generate_homework(
             question_types=request_data.question_types
         )
 
+        # 4. 保存到数据库
+        import json
+        from datetime import datetime
+        import os
+
+        # 生成短ID
+        short_id = generate_short_id(8)
+
+        # 准备内容（JSON格式的结构化数据）
+        content_json = {
+            "id": f"hw_{short_id}",
+            "grade": homework_data["grade"],
+            "topic": homework_data["topic"],
+            "difficulty": homework_data["difficulty"],
+            "questions": homework_data["questions"],
+            "generated_at": datetime.now().isoformat()
+        }
+        content = json.dumps(content_json, ensure_ascii=False, indent=2)
+
+        # 提取标题
+        title = f"{homework_data['grade']} - {homework_data['topic']}"
+
+        # 保存到数据库
+        homework = save_homework(
+            session=session,
+            short_id=short_id,
+            content=content,
+            title=title,
+            user_id=current_user.user_id,
+            homework_type="ai_generated"
+        )
+
+        # 5. 生成短链接和二维码
+        view_url = f"{settings.base_url}/v/{short_id}"
+        qr_data_url = generate_qr_code(view_url, 300, "M")
+
         return {
             "success": True,
             "data": {
                 "homework": homework_data,
+                "homework_id": homework.id,
+                "short_id": short_id,
+                "view_url": view_url,
+                "qr_code_data_url": qr_data_url,
                 "quota_remaining": result.get("remaining", -1)
             }
         }
