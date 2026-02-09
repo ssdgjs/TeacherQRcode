@@ -1,19 +1,30 @@
 """
-数据模型定义 - SQLite
+数据模型定义 - PostgreSQL
 """
 from datetime import datetime
 from typing import Optional
-from sqlmodel import SQLModel, Field, create_engine, Session, select
+from sqlmodel import SQLModel, Field, Session, select
 from pydantic import BaseModel
-import os
 
 
-# ==================== SQLModel ====================
+# ==================== SQLModel 模型 ====================
+class User(SQLModel, table=True):
+    """用户表"""
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True, max_length=255)
+    password_hash: str = Field(max_length=255)
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_login_at: Optional[datetime] = None
+
+
 class HomeworkItem(SQLModel, table=True):
     """作业数据表"""
     __tablename__ = "homework_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # 关联用户
     short_id: str = Field(unique=True, index=True, max_length=12)  # 8位短码
     content: str = Field(max_length=10000)  # 作业内容（Markdown）
     title: Optional[str] = Field(default=None, max_length=100)  # 自动提取的首行
@@ -21,11 +32,26 @@ class HomeworkItem(SQLModel, table=True):
     audio_filename: Optional[str] = Field(default=None, max_length=100)  # 原始文件名
     audio_size: Optional[int] = Field(default=None)  # 文件大小（字节）
     homework_type: str = Field(default="text", max_length=20)  # 'text' 或 'listening'
+    grade: Optional[str] = Field(default=None, max_length=50)  # 年级（AI生成）
+    topic: Optional[str] = Field(default=None, max_length=100)  # 主题（AI生成）
+    difficulty: Optional[str] = Field(default=None, max_length=20)  # 难度（AI生成）
+    question_types: Optional[str] = Field(default=None, max_length=100)  # JSON格式的题型列表
     created_at: datetime = Field(default_factory=datetime.now)
     expires_at: Optional[datetime] = Field(default=None)  # 扩展字段，预留
 
 
 # ==================== Pydantic Models for API ====================
+class UserResponse(BaseModel):
+    """用户响应模型"""
+    id: int
+    email: str
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class HomeworkCreate(BaseModel):
     """创建作业的请求模型"""
     content: str
@@ -67,15 +93,15 @@ class AudioUploadResponse(BaseModel):
     url: str
 
 
-# ==================== Database Engine ====================
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/data.db")
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+# ==================== Database Operations ====================
+# 导入数据库连接（从database.py）
+from database import engine
 
 
 def init_db():
     """初始化数据库"""
     SQLModel.metadata.create_all(engine)
-    print("✅ Database initialized at:", DATABASE_URL)
+    print("✅ Database initialized (PostgreSQL)")
 
 
 def get_session():
@@ -84,7 +110,37 @@ def get_session():
         yield session
 
 
-# ==================== Database Operations ====================
+# ==================== 用户操作 ====================
+def get_user_by_email(session: Session, email: str) -> Optional[User]:
+    """根据邮箱获取用户"""
+    statement = select(User).where(User.email == email)
+    result = session.exec(statement).first()
+    return result
+
+
+def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
+    """根据ID获取用户"""
+    return session.get(User, user_id)
+
+
+def create_user(session: Session, email: str, password_hash: str) -> User:
+    """创建新用户"""
+    user = User(email=email, password_hash=password_hash)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def update_last_login(session: Session, user: User):
+    """更新用户最后登录时间"""
+    user.last_login_at = datetime.now()
+    session.add(user)
+    session.commit()
+
+
+# ==================== 作业操作 ====================
+
 def save_homework(
     session: Session,
     short_id: str,

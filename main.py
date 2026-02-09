@@ -17,7 +17,13 @@ from sqlalchemy import select
 from models import (
     init_db, get_session, HomeworkItem, HomeworkCreate,
     HomeworkResponse, delete_expired_homeworks, get_homework_by_short_id,
-    save_homework, delete_homework
+    save_homework, delete_homework, User, UserResponse,
+    get_user_by_email, create_user, update_last_login
+)
+from auth import (
+    UserLogin, UserRegister, Token, get_current_user,
+    create_access_token, verify_password, get_password_hash,
+    validate_password_strength, validate_email
 )
 from utils import (
     generate_short_id, generate_qr_code, extract_title,
@@ -110,6 +116,161 @@ async def startup_event():
 async def health_check():
     """健康检查"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+# ==================== Authentication Routes ====================
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """登录页面"""
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request}
+    )
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """注册页面"""
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request}
+    )
+
+
+@app.post("/api/v1/auth/register")
+async def register(user_data: UserRegister):
+    """
+    用户注册
+
+    Args:
+        user_data: 注册数据（邮箱、密码、确认密码）
+
+    Returns:
+        JSON: success=True 时包含 token 和 user 信息
+    """
+    # 验证邮箱格式
+    is_valid, error_msg = validate_email(user_data.email)
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    # 验证密码匹配
+    if user_data.password != user_data.confirm_password:
+        return {"success": False, "error": "两次输入的密码不一致"}
+
+    # 验证密码强度
+    is_valid, error_msg = validate_password_strength(user_data.password)
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    session = next(get_session())
+
+    # 检查邮箱是否已存在
+    existing_user = get_user_by_email(session, user_data.email)
+    if existing_user:
+        return {"success": False, "error": "该邮箱已被注册"}
+
+    try:
+        # 创建新用户
+        password_hash = get_password_hash(user_data.password)
+        new_user = create_user(session, user_data.email, password_hash)
+
+        # 生成 JWT token
+        token_data = {
+            "sub": new_user.id,
+            "email": new_user.email
+        }
+        access_token = create_access_token(token_data)
+
+        return {
+            "success": True,
+            "data": {
+                "token": access_token,
+                "user": {
+                    "id": new_user.id,
+                    "email": new_user.email,
+                    "created_at": new_user.created_at.isoformat()
+                }
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": f"注册失败: {str(e)}"}
+
+
+@app.post("/api/v1/auth/login")
+async def login(user_data: UserLogin):
+    """
+    用户登录
+
+    Args:
+        user_data: 登录数据（邮箱、密码）
+
+    Returns:
+        JSON: success=True 时包含 token 和 user 信息
+    """
+    session = next(get_session())
+
+    # 查找用户
+    user = get_user_by_email(session, user_data.email)
+    if not user:
+        return {"success": False, "error": "邮箱或密码错误"}
+
+    # 验证密码
+    if not verify_password(user_data.password, user.password_hash):
+        return {"success": False, "error": "邮箱或密码错误"}
+
+    try:
+        # 更新最后登录时间
+        update_last_login(session, user)
+
+        # 生成 JWT token
+        token_data = {
+            "sub": user.id,
+            "email": user.email
+        }
+        access_token = create_access_token(token_data)
+
+        return {
+            "success": True,
+            "data": {
+                "token": access_token,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "created_at": user.created_at.isoformat(),
+                    "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+                }
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": f"登录失败: {str(e)}"}
+
+
+@app.get("/api/v1/auth/me")
+async def get_current_user_info(current_user = Depends(get_current_user)):
+    """
+    获取当前登录用户信息
+
+    Args:
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 用户信息
+    """
+    session = next(get_session())
+    user = session.get(User, current_user.user_id)
+
+    if not user:
+        return {"success": False, "error": "用户不存在"}
+
+    return {
+        "success": True,
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "created_at": user.created_at.isoformat(),
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+        }
+    }
 
 
 # ==================== Main Page ====================
