@@ -834,6 +834,258 @@ async def delete_homework_endpoint(
         return {"success": False, "error": f"删除作业失败: {str(e)}"}
 
 
+# ==================== Payment Routes ====================
+@app.get("/pricing", response_class=HTMLResponse)
+async def pricing_page(request: Request):
+    """定价页面"""
+    return templates.TemplateResponse(
+        "pricing.html",
+        {"request": request}
+    )
+
+
+class CreateOrderRequest(BaseModel):
+    """创建订单请求"""
+    order_type: str  # 'package' or 'subscription'
+
+
+@app.post("/api/v1/payment/create-order")
+async def create_payment_order(
+    request_data: CreateOrderRequest,
+    request: Request,
+    current_user = Depends(get_current_user)
+):
+    """
+    创建支付订单
+
+    Args:
+        request_data: 订单类型（package/subscription）
+        request: FastAPI Request对象（获取客户端IP）
+        current_user: 当前用户
+
+    Returns:
+        JSON: 订单信息和支付参数
+    """
+    # 验证订单类型
+    if request_data.order_type not in ["package", "subscription"]:
+        return {"success": False, "error": "无效的订单类型"}
+
+    # 获取客户端IP
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    session = next(get_session())
+
+    try:
+        from payment_service import get_payment_service
+        payment_service = get_payment_service()
+
+        success, message, result = payment_service.create_order(
+            session=session,
+            user_id=current_user.user_id,
+            order_type=request_data.order_type,
+            client_ip=client_ip
+        )
+
+        if success:
+            return {
+                "success": True,
+                "data": result,
+                "message": message
+            }
+        else:
+            return {"success": False, "error": message}
+
+    except Exception as e:
+        return {"success": False, "error": f"创建订单失败: {str(e)}"}
+
+
+@app.post("/api/v1/payment/callback")
+async def payment_callback(request: Request):
+    """
+    微信支付回调
+
+    Args:
+        request: FastAPI Request对象
+
+    Returns:
+        XML: 微信支付要求的响应格式
+    """
+    # 获取XML数据
+    xml_data = await request.body()
+
+    session = next(get_session())
+
+    try:
+        from payment_service import get_payment_service
+        payment_service = get_payment_service()
+
+        # 验证回调
+        success, message, data = payment_service.verify_callback(xml_data)
+
+        if not success:
+            # 返回失败响应
+            return Response(
+                content="<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[{msg}]]></return_msg></xml>".format(msg=message),
+                media_type="application/xml"
+            )
+
+        # 处理支付成功
+        order_no = data.get("out_trade_no")
+        transaction_id = data.get("transaction_id")
+
+        success, message = payment_service.process_payment_success(
+            session=session,
+            order_no=order_no,
+            transaction_id=transaction_id
+        )
+
+        if success:
+            # 返回成功响应
+            return Response(
+                content="<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>",
+                media_type="application/xml"
+            )
+        else:
+            # 返回失败响应
+            return Response(
+                content="<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[{msg}]]></return_msg></xml>".format(msg=message),
+                media_type="application/xml"
+            )
+
+    except Exception as e:
+        # 返回失败响应
+        return Response(
+            content="<xml><return_code><![CDATA[FAIL]]></return_msg><return_msg><![CDATA[{error}]]></return_msg></xml>".format(error=str(e)),
+            media_type="application/xml"
+        )
+
+
+@app.get("/api/v1/payment/orders")
+async def get_user_payment_orders(
+    limit: int = 20,
+    current_user = Depends(get_current_user)
+):
+    """
+    获取用户的支付订单列表
+
+    Args:
+        limit: 返回数量限制
+        current_user: 当前用户
+
+    Returns:
+        JSON: 订单列表
+    """
+    session = next(get_session())
+
+    try:
+        from payment_service import get_payment_service
+        payment_service = get_payment_service()
+
+        orders = payment_service.get_user_orders(
+            session=session,
+            user_id=current_user.user_id,
+            limit=limit
+        )
+
+        return {
+            "success": True,
+            "data": {
+                "orders": orders
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"获取订单列表失败: {str(e)}"}
+
+
+@app.get("/api/v1/payment/check-status/{order_no}")
+async def check_order_status(
+    order_no: str,
+    current_user = Depends(get_current_user)
+):
+    """
+    查询订单状态
+
+    Args:
+        order_no: 订单号
+        current_user: 当前用户
+
+    Returns:
+        JSON: 订单状态
+    """
+    session = next(get_session())
+
+    # 验证订单所有权
+    order = session.exec(
+        select(Order).where(Order.order_no == order_no)
+    ).first()
+
+    if not order:
+        return {"success": False, "error": "订单不存在"}
+
+    if order.user_id != current_user.user_id:
+        return {"success": False, "error": "无权访问此订单"}
+
+    try:
+        from payment_service import get_payment_service
+        payment_service = get_payment_service()
+
+        # 查询微信支付订单状态
+        success, message, wechat_data = payment_service.query_order(order_no)
+
+        if success and wechat_data:
+            # 如果微信返回已支付，但本地未更新，则更新本地状态
+            if wechat_data.get("trade_state") == "SUCCESS" and order.status != "paid":
+                payment_service.process_payment_success(
+                    session=session,
+                    order_no=order_no,
+                    transaction_id=wechat_data.get("transaction_id", "")
+                )
+
+        return {
+            "success": True,
+            "data": {
+                "order_no": order.order_no,
+                "type": order.type,
+                "amount": order.amount,
+                "status": order.status,
+                "created_at": order.created_at.isoformat(),
+                "paid_at": order.paid_at.isoformat() if order.paid_at else None
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"查询订单状态失败: {str(e)}"}
+
+
+@app.get("/api/v1/payment/test")
+async def test_payment_service():
+    """
+    测试支付服务连接
+
+    Returns:
+        JSON: 测试结果
+    """
+    try:
+        from payment_service import get_payment_service, PaymentConfig
+        payment_service = get_payment_service()
+
+        config = PaymentConfig()
+
+        return {
+            "success": True,
+            "data": {
+                "configured": payment_service.test_connection(),
+                "package_price": config.PACKAGE_PRICE / 100,  # 转换为元
+                "monthly_price": config.MONTHLY_PRICE / 100,
+                "package_count": config.PACKAGE_COUNT,
+                "monthly_days": config.MONTHLY_DAYS
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": f"测试失败: {str(e)}"}
+
+
 
 # ==================== Main Page ====================
 @app.get("/", response_class=HTMLResponse)

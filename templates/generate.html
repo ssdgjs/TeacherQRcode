@@ -153,6 +153,28 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
+        <!-- 额度显示卡片 -->
+        <div id="quota-banner" class="bg-white rounded-xl shadow-md p-4 mb-6 hidden">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div id="quota-icon" class="p-2 rounded-lg">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">今日额度</p>
+                        <p id="quota-text" class="text-lg font-bold text-gray-800">加载中...</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <a href="/pricing" id="upgrade-link" class="hidden bg-gradient-to-r from-teal-600 to-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-teal-700 hover:to-teal-800 transition-all">
+                        获取更多次数 →
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Left Panel: Configuration -->
             <div class="lg:col-span-1 space-y-6">
@@ -427,6 +449,103 @@
     </main>
 
     <script>
+        // 检查登录状态并加载额度
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            loadQuota();
+            setupUrlParams();
+        });
+
+        // 检查登录状态
+        function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+            }
+            return token;
+        }
+
+        // 加载额度
+        async function loadQuota() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            try {
+                const response = await fetch('/api/v1/quota', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateQuotaDisplay(data.data);
+                    }
+                }
+            } catch (error) {
+                console.error('加载额度失败:', error);
+            }
+        }
+
+        // 更新额度显示
+        function updateQuotaDisplay(quota) {
+            const quotaBanner = document.getElementById('quota-banner');
+            const quotaIcon = document.getElementById('quota-icon');
+            const quotaText = document.getElementById('quota-text');
+            const upgradeLink = document.getElementById('upgrade-link');
+
+            quotaBanner.classList.remove('hidden');
+            const freeRemaining = quota.free_limit - quota.free_used_today;
+
+            if (quota.is_subscriber) {
+                // 月卡用户
+                quotaIcon.className = 'bg-yellow-100 p-2 rounded-lg';
+                quotaIcon.innerHTML = '<svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>';
+                quotaText.innerHTML = '<span class="text-yellow-600">⭐ 月卡会员（无限）</span>';
+                upgradeLink.classList.add('hidden');
+            } else if (quota.purchased_count > 0) {
+                // 有购买次数
+                quotaIcon.className = 'bg-blue-100 p-2 rounded-lg';
+                quotaIcon.innerHTML = '<svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>';
+                quotaText.innerHTML = `<span class="text-blue-600">${quota.purchased_count}次</span> + <span class="text-gray-600">免费 ${freeRemaining}/${quota.free_limit}</span>`;
+                upgradeLink.classList.remove('hidden');
+            } else if (freeRemaining > 0) {
+                // 只有免费额度
+                quotaIcon.className = 'bg-teal-100 p-2 rounded-lg';
+                quotaIcon.innerHTML = '<svg class="h-6 w-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>';
+                quotaText.textContent = `免费 ${freeRemaining}/${quota.free_limit}`;
+                upgradeLink.classList.add('hidden');
+            } else {
+                // 额度用完
+                quotaIcon.className = 'bg-red-100 p-2 rounded-lg';
+                quotaIcon.innerHTML = '<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+                quotaText.innerHTML = '<span class="text-red-600">今日额度已用完</span>';
+                upgradeLink.classList.remove('hidden');
+                upgradeLink.textContent = '获取更多次数 →';
+            }
+        }
+
+        // 设置URL参数（用于重新生成）
+        function setupUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const grade = urlParams.get('grade');
+            const topic = urlParams.get('topic');
+            const difficulty = urlParams.get('difficulty');
+            const regenerate = urlParams.get('regenerate');
+
+            if (grade) {
+                document.getElementById('grade').value = grade;
+            }
+            if (topic) {
+                document.getElementById('topic').value = topic;
+            }
+            if (difficulty) {
+                document.getElementById('difficulty').value = difficulty;
+            }
+            if (regenerate === 'true') {
+                showInfo('已为您预填上次生成的参数，确认后点击"开始生成"即可');
+            }
+        }
+
         // Toast通知函数
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');

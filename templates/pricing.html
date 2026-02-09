@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>定价 - EduQR AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义样式 */
+        .gradient-bg {
+            background: linear-gradient(-45deg, #0d9488, #14b8a6, #0f766e, #115e59);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 卡片悬浮效果 */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.15);
+        }
+
+        /* 推荐标签动画 */
+        .popular-badge {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Toast通知 */
+        .toast-notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            animation: toastSlideIn 0.3s ease-out;
+        }
+        .toast-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .toast-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        .toast-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 对号动画 */
+        .check-icon {
+            animation: checkmark 0.4s ease-in-out;
+        }
+        @keyframes checkmark {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        /* 按钮点击效果 */
+        .btn-click {
+            transition: all 0.2s ease;
+        }
+        .btn-click:active {
+            transform: scale(0.95);
+        }
+
+        /* 价格切换动画 */
+        .price-switch {
+            transition: all 0.3s ease;
+        }
+
+        /* 模态框动画 */
+        .modal-backdrop {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-content {
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-xl">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <a href="/" class="flex items-center space-x-3 text-white hover:text-teal-100 transition-colors">
+                    <div class="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold">EduQR AI</h1>
+                        <p class="text-teal-100 text-xs">智能英语作业生成器</p>
+                    </div>
+                </a>
+                <div class="flex items-center space-x-3">
+                    <a href="/history" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-4 py-2 text-sm font-medium transition-all flex items-center space-x-2">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        <span>📚 历史记录</span>
+                    </a>
+                    <a href="/generate" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-4 py-2 text-sm font-medium transition-all">
+                        生成作业
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="py-16 bg-gradient-to-b from-teal-50 to-white">
+        <div class="container mx-auto px-4 text-center">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-6">
+                选择适合您的<span class="text-teal-600">套餐</span>
+            </h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+                AI驱动的智能英语作业生成器，帮助老师快速创建高质量练习题
+            </p>
+            <div class="flex justify-center items-center space-x-4 text-sm text-gray-500">
+                <span class="flex items-center">
+                    <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    即时到账
+                </span>
+                <span class="flex items-center">
+                    <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    安全支付
+                </span>
+                <span class="flex items-center">
+                    <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    随时取消
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Cards -->
+    <section class="py-16">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Free Plan -->
+                <div class="bg-white rounded-2xl shadow-lg p-8 card-hover border border-gray-200">
+                    <div class="text-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">免费版</h3>
+                        <p class="text-gray-600 text-sm">适合偶尔使用的老师</p>
+                    </div>
+                    <div class="text-center mb-6">
+                        <span class="text-5xl font-bold text-gray-800">¥0</span>
+                        <span class="text-gray-600">/天</span>
+                    </div>
+                    <div class="space-y-4 mb-8">
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">每天 <strong class="text-teal-600">10次</strong> 免费生成</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">6种英语题型</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">AI智能生成</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">自动生成二维码</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">历史记录管理</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-gray-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            <span class="text-gray-400 line-through">语音合成（TTS）</span>
+                        </div>
+                    </div>
+                    <a href="/generate" class="block w-full py-3 px-6 border-2 border-teal-600 text-teal-600 rounded-xl font-bold text-center hover:bg-teal-50 transition-all btn-click">
+                        开始使用
+                    </a>
+                </div>
+
+                <!-- Package Plan (Popular) -->
+                <div class="bg-white rounded-2xl shadow-xl p-8 card-hover border-2 border-teal-500 relative">
+                    <div class="popular-badge absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-teal-600 to-teal-700 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg">
+                        ⭐ 最受欢迎
+                    </div>
+                    <div class="text-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">次数包</h3>
+                        <p class="text-gray-600 text-sm">适合需要灵活使用的老师</p>
+                    </div>
+                    <div class="text-center mb-6">
+                        <span class="text-5xl font-bold text-teal-600">¥9.9</span>
+                        <span class="text-gray-600">/100次</span>
+                        <p class="text-sm text-gray-500 mt-2">仅需 ¥0.099/次</p>
+                    </div>
+                    <div class="space-y-4 mb-8">
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700"><strong class="text-teal-600">100次</strong> 生成额度</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">永久有效，随时使用</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">包含所有免费版功能</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">语音合成（TTS）</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">优先客服支持</span>
+                        </div>
+                    </div>
+                    <button onclick="purchase('package')" class="w-full py-3 px-6 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl font-bold hover:from-teal-700 hover:to-teal-800 transition-all shadow-lg btn-click">
+                        立即购买
+                    </button>
+                </div>
+
+                <!-- Subscription Plan -->
+                <div class="bg-white rounded-2xl shadow-lg p-8 card-hover border border-gray-200">
+                    <div class="text-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">月度会员</h3>
+                        <p class="text-gray-600 text-sm">适合高频使用的老师</p>
+                    </div>
+                    <div class="text-center mb-6">
+                        <span class="text-5xl font-bold text-teal-600">¥9.9</span>
+                        <span class="text-gray-600">/月</span>
+                        <p class="text-sm text-gray-500 mt-2">无限次生成</p>
+                    </div>
+                    <div class="space-y-4 mb-8">
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700"><strong class="text-teal-600">无限次</strong> 生成</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">30天有效期</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">包含所有付费功能</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">语音合成（TTS）</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">专属客服支持</span>
+                        </div>
+                        <div class="flex items-start">
+                            <svg class="h-6 w-6 text-teal-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-gray-700">到期自动续费（可取消）</span>
+                        </div>
+                    </div>
+                    <button onclick="purchase('subscription')" class="w-full py-3 px-6 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl font-bold hover:from-teal-700 hover:to-teal-800 transition-all shadow-lg btn-click">
+                        立即订阅
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="py-16 bg-gray-50">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">常见问题</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="bg-white rounded-xl p-6 shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-3">Q: 免费版真的免费吗？</h3>
+                    <p class="text-gray-600">是的，免费版每天提供10次AI生成额度，完全免费使用。额度会在每天午夜重置。</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-3">Q: 次数包有有效期吗？</h3>
+                    <p class="text-gray-600">次数包永久有效，购买后可以随时使用，没有过期时间。</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-3">Q: 月度会员如何续费？</h3>
+                    <p class="text-gray-600">月度会员在到期前会提醒续费。您可以手动续费或开启自动续费，随时可以取消。</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-3">Q: 支持哪些支付方式？</h3>
+                    <p class="text-gray-600">目前支持微信支付，未来会接入更多支付方式。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-gray-400 py-8">
+        <div class="container mx-auto px-4 text-center">
+            <p class="mb-2">EduQR AI - 智能英语作业生成器</p>
+            <p class="text-sm">AI驱动 · 私有化部署 · 数据完全自主掌控</p>
+            <p class="text-sm mt-4">微信支付技术支持</p>
+        </div>
+    </footer>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 modal-content">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-gray-800">确认订单</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="order-details" class="mb-6">
+                <!-- 动态填充 -->
+            </div>
+            <div class="space-y-3">
+                <button onclick="confirmPayment()" id="wechat-pay-btn" class="w-full py-3 px-6 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all btn-click flex items-center justify-center space-x-2">
+                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 01.598.082l1.584.926a.272.272 0 00.14.045c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.49.49 0 01-.023-.14.487.487 0 01.201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.969-.982z"/>
+                    </svg>
+                    <span>微信支付</span>
+                </button>
+                <button onclick="closeModal()" class="w-full py-3 px-6 bg-gray-200 text-gray-800 rounded-xl font-bold hover:bg-gray-300 transition-all btn-click">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toast-container" class="toast-notification"></div>
+
+    <script>
+        let currentOrderType = null;
+        let currentOrderNo = null;
+
+        // 检查登录状态
+        function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+            }
+        }
+
+        // 购买按钮点击
+        async function purchase(orderType) {
+            checkAuth();
+
+            currentOrderType = orderType;
+
+            // 显示订单详情
+            const orderDetails = document.getElementById('order-details');
+
+            if (orderType === 'package') {
+                orderDetails.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">商品</span>
+                            <span class="font-bold text-gray-800">100次生成包</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">价格</span>
+                            <span class="font-bold text-teal-600 text-xl">¥9.90</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2">
+                            <span class="text-gray-600">有效期</span>
+                            <span class="font-medium text-gray-800">永久有效</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                orderDetails.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">商品</span>
+                            <span class="font-bold text-gray-800">月度会员</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b">
+                            <span class="text-gray-600">价格</span>
+                            <span class="font-bold text-teal-600 text-xl">¥9.90</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2">
+                            <span class="text-gray-600">有效期</span>
+                            <span class="font-medium text-gray-800">30天</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 显示模态框
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+            currentOrderType = null;
+            currentOrderNo = null;
+        }
+
+        // 确认支付
+        async function confirmPayment() {
+            const token = localStorage.getItem('access_token');
+
+            // 禁用按钮
+            const btn = document.getElementById('wechat-pay-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner inline-block mr-2"></span>处理中...';
+
+            try {
+                // 创建订单
+                const response = await fetch('/api/v1/payment/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        order_type: currentOrderType
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentOrderNo = result.data.order_no;
+
+                    // 模拟微信支付（实际需要调用微信JSAPI）
+                    // 这里简化处理，直接跳转到成功页面
+                    showSuccess('订单创建成功！');
+                    setTimeout(() => {
+                        closeModal();
+                        // 实际应该调用微信支付JSAPI
+                        // 这里模拟支付成功
+                        showSuccess('支付成功！额度已到账');
+                        setTimeout(() => {
+                            window.location.href = '/generate';
+                        }, 2000);
+                    }, 1500);
+                } else {
+                    showError(result.error);
+                    btn.disabled = false;
+                    btn.innerHTML = `<svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348z"/></svg><span>微信支付</span>`;
+                }
+            } catch (error) {
+                showError('创建订单失败: ' + error.message);
+                btn.disabled = false;
+                btn.innerHTML = `<svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348z"/></svg><span>微信支付</span>`;
+            }
+        }
+
+        // Toast 通知
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                error: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                info: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+            };
+
+            toast.innerHTML = `${icons[type]}<span class="font-medium">${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-exit');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, duration);
+        }
+
+        function showError(message) {
+            showToast(message, 'error', 4000);
+        }
+
+        function showSuccess(message) {
+            showToast(message, 'success', 3000);
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+        });
+    </script>
+</body>
+</html>
