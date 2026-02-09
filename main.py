@@ -32,6 +32,7 @@ from quota import (
 )
 from tasks import start_scheduler, get_scheduler_info
 from ai_service import get_ai_service, validate_generation_params
+from tts_service import get_tts_service, validate_tts_params, VOICE_CONFIGS, SPEED_CONFIGS
 from utils import (
     generate_short_id, generate_qr_code, extract_title,
     render_markdown, sanitize_markdown, format_file_size,
@@ -456,6 +457,100 @@ async def test_ai_connection():
         }
     except Exception as e:
         return {"success": False, "error": f"AI服务连接失败: {str(e)}"}
+
+
+# ==================== TTS Routes ====================
+class TTSGenerateRequest(BaseModel):
+    """TTS生成请求"""
+    text: str
+    voice: str = "en_us_male"
+    speed: float = 1.0
+
+
+@app.post("/api/v1/tts/generate")
+async def generate_tts_audio(
+    request_data: TTSGenerateRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    生成TTS音频
+
+    Args:
+        request_data: TTS参数（文本、发音、语速）
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 生成的音频信息
+    """
+    # 1. 验证参数
+    is_valid, error_msg = validate_tts_params(
+        request_data.text,
+        request_data.voice,
+        request_data.speed
+    )
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    # 2. 调用TTS服务
+    try:
+        tts_service = get_tts_service()
+        audio_data = tts_service.generate_audio(
+            text=request_data.text,
+            voice=request_data.voice,
+            speed=request_data.speed
+        )
+
+        return {"success": True, "data": audio_data}
+
+    except Exception as e:
+        return {"success": False, "error": f"TTS生成失败: {str(e)}"}
+
+
+@app.get("/api/v1/tts/voices")
+async def get_available_voices():
+    """
+    获取可用的发音类型
+
+    Returns:
+        JSON: 发音类型列表
+    """
+    voices = []
+    for voice_id, config in VOICE_CONFIGS.items():
+        voices.append({
+            "id": voice_id,
+            "name": config["name"],
+            "language": config["language"],
+            "gender": config["gender"]
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "voices": voices
+        }
+    }
+
+
+@app.get("/api/v1/tts/test")
+async def test_tts_connection():
+    """
+    测试TTS服务连接
+
+    Returns:
+        JSON: 测试结果
+    """
+    try:
+        tts_service = get_tts_service()
+        is_connected = tts_service.test_connection()
+        return {
+            "success": True,
+            "data": {
+                "connected": is_connected,
+                "service": "volcengine-tts"
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": f"TTS服务连接失败: {str(e)}"}
 
 
 # ==================== Main Page ====================
