@@ -593,6 +593,248 @@ async def test_tts_connection():
         return {"success": False, "error": f"TTS服务连接失败: {str(e)}"}
 
 
+# ==================== History Management Routes ====================
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    """历史记录页面"""
+    return templates.TemplateResponse(
+        "history.html",
+        {"request": request}
+    )
+
+
+class HistoryListResponse(BaseModel):
+    """历史记录列表响应"""
+    items: list
+    total: int
+    page: int
+    limit: int
+    has_next: bool
+    has_prev: bool
+
+
+@app.get("/api/v1/homework/history")
+async def get_homework_history(
+    page: int = 1,
+    limit: int = 20,
+    topic_filter: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user = Depends(get_current_user)
+):
+    """
+    获取用户的作业历史记录
+
+    Args:
+        page: 页码（从1开始）
+        limit: 每页数量（默认20）
+        topic_filter: 主题过滤（可选）
+        date_from: 开始日期（YYYY-MM-DD，可选）
+        date_to: 结束日期（YYYY-MM-DD，可选）
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 作业列表、分页信息
+    """
+    session = next(get_session())
+
+    try:
+        # 构建查询
+        query = select(HomeworkItem).where(HomeworkItem.user_id == current_user.user_id)
+
+        # 应用主题过滤
+        if topic_filter:
+            query = query.where(HomeworkItem.topic.ilike(f"%{topic_filter}%"))
+
+        # 应用日期过滤
+        if date_from:
+            try:
+                from datetime import datetime
+                dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+                query = query.where(HomeworkItem.created_at >= dt_from)
+            except ValueError:
+                return {"success": False, "error": "开始日期格式错误，请使用 YYYY-MM-DD"}
+
+        if date_to:
+            try:
+                from datetime import datetime, timedelta
+                dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+                query = query.where(HomeworkItem.created_at < dt_to)
+            except ValueError:
+                return {"success": False, "error": "结束日期格式错误，请使用 YYYY-MM-DD"}
+
+        # 排序：最新优先
+        query = query.order_by(HomeworkItem.created_at.desc())
+
+        # 计算总数
+        from sqlalchemy import func
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = session.execute(count_query).scalar()
+        total = total_result or 0
+
+        # 应用分页
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+
+        # 执行查询
+        homeworks = session.exec(query).all()
+
+        # 构建响应数据
+        items = []
+        for hw in homeworks:
+            item = {
+                "id": hw.id,
+                "short_id": hw.short_id,
+                "title": hw.title,
+                "homework_type": hw.homework_type,
+                "grade": hw.grade,
+                "topic": hw.topic,
+                "difficulty": hw.difficulty,
+                "question_types": hw.question_types,
+                "created_at": hw.created_at.isoformat(),
+                "view_url": f"{settings.base_url}/v/{hw.short_id}"
+            }
+
+            # 如果是AI生成，解析题型统计
+            if hw.homework_type == "ai_generated" and hw.question_types:
+                try:
+                    import json
+                    types = json.loads(hw.question_types)
+                    type_names = {
+                        "choice": "选择题",
+                        "fill_blank": "填空题",
+                        "true_false": "判断题",
+                        "reading": "阅读理解",
+                        "listening": "听力题",
+                        "essay": "作文"
+                    }
+                    type_labels = [f"{type_names.get(t['type'], t['type'])}×{t['count']}" for t in types]
+                    item["question_types_label"] = " + ".join(type_labels)
+                except:
+                    item["question_types_label"] = "未知题型"
+            else:
+                item["question_types_label"] = "手动输入"
+
+            items.append(item)
+
+        return {
+            "success": True,
+            "data": {
+                "items": items,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "has_next": offset + limit < total,
+                "has_prev": page > 1
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"获取历史记录失败: {str(e)}"}
+
+
+@app.get("/api/v1/homework/{homework_id}")
+async def get_homework_details(
+    homework_id: int,
+    current_user = Depends(get_current_user)
+):
+    """
+    获取单个作业详情
+
+    Args:
+        homework_id: 作业ID
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 作业详情
+    """
+    session = next(get_session())
+
+    try:
+        homework = session.get(HomeworkItem, homework_id)
+
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        # 验证所有权
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权访问此作业"}
+
+        # 如果是AI生成，解析content
+        content_data = homework.content
+        if homework.homework_type == "ai_generated":
+            try:
+                import json
+                content_data = json.loads(homework.content)
+            except:
+                pass
+
+        return {
+            "success": True,
+            "data": {
+                "id": homework.id,
+                "short_id": homework.short_id,
+                "title": homework.title,
+                "content": content_data,
+                "homework_type": homework.homework_type,
+                "grade": homework.grade,
+                "topic": homework.topic,
+                "difficulty": homework.difficulty,
+                "question_types": homework.question_types,
+                "created_at": homework.created_at.isoformat(),
+                "view_url": f"{settings.base_url}/v/{homework.short_id}",
+                "audio_path": homework.audio_path,
+                "audio_filename": homework.audio_filename
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"获取作业详情失败: {str(e)}"}
+
+
+@app.delete("/api/v1/homework/{homework_id}")
+async def delete_homework_endpoint(
+    homework_id: int,
+    current_user = Depends(get_current_user)
+):
+    """
+    删除作业
+
+    Args:
+        homework_id: 作业ID
+        current_user: 当前用户（从JWT token解析）
+
+    Returns:
+        JSON: 删除结果
+    """
+    session = next(get_session())
+
+    try:
+        homework = session.get(HomeworkItem, homework_id)
+
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        # 验证所有权
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权删除此作业"}
+
+        # 删除作业
+        delete_homework(session, homework_id)
+
+        return {
+            "success": True,
+            "data": {
+                "message": "作业已删除",
+                "homework_id": homework_id
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"删除作业失败: {str(e)}"}
+
+
+
 # ==================== Main Page ====================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
