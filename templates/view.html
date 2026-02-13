@@ -179,7 +179,7 @@
         <!-- Content -->
         <main class="px-4 py-6">
             <!-- AI Generated Homework -->
-            {% if homework.homework_type == 'ai_generated' %}
+            {% if homework.homework_type in ['ai_generated', 'listening', 'reading', 'choice', 'fill_blank', 'true_false', 'essay'] %}
             <div id="ai-homework-container" class="space-y-6">
                 <!-- Homework Info -->
                 <div class="bg-gradient-to-r from-teal-50 to-teal-100/50 rounded-xl p-4 border border-teal-200">
@@ -217,7 +217,9 @@
                 // 解析并渲染AI生成的作业
                 (function() {
                     try {
-                        const content = {{ homework.content | safe }};
+                        // homework.content 是 JSON 字符串，需要先解析
+                        const contentStr = {{ homework.content | tojson }};
+                        const content = typeof contentStr === 'string' ? JSON.parse(contentStr) : contentStr;
                         renderAIHomework(content);
                     } catch (error) {
                         console.error('Failed to render AI homework:', error);
@@ -463,6 +465,7 @@
             </div>
         </footer>
     </div>
-    {% endif %}
+    {% endif %}  <!-- End if homework.homework_type == 'ai_generated' -->
+{% endif %}  <!-- End if error -->
 </body>
 </html>

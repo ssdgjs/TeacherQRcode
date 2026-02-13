@@ -15,6 +15,7 @@ class QuotaSettings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # 忽略额外的环境变量
         env_prefix = ""
 
 

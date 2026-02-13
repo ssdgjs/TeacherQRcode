@@ -337,60 +337,22 @@
                                 <div class="flex items-center">
                                     <input type="checkbox" id="generate_audio" name="generate_audio" class="checkbox-custom">
                                     <label for="generate_audio" class="ml-3 text-sm text-gray-700">
-                                        为听力题生成音频（美式/英式发音）
+                                        为听力题生成 AI 推荐的音频（ChatTTS 多说话人合成）
                                     </label>
                                 </div>
 
-                                <!-- 发音选择 -->
-                                <div id="voice-selection" class="hidden">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        发音类型
-                                    </label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <label class="flex items-center border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-teal-500 transition-colors">
-                                            <input type="radio" name="voice" value="en_us_male" checked
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">🇺🇸 美式男声</span>
-                                        </label>
-                                        <label class="flex items-center border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-teal-500 transition-colors">
-                                            <input type="radio" name="voice" value="en_us_female"
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">🇺🇸 美式女声</span>
-                                        </label>
-                                        <label class="flex items-center border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-teal-500 transition-colors">
-                                            <input type="radio" name="voice" value="en_gb_male"
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">🇬🇧 英式男声</span>
-                                        </label>
-                                        <label class="flex items-center border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-teal-500 transition-colors">
-                                            <input type="radio" name="voice" value="en_gb_female"
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">🇬🇧 英式女声</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- 语速选择 -->
-                                <div id="speed-selection" class="hidden">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        语速
-                                    </label>
-                                    <div class="flex space-x-4">
-                                        <label class="flex items-center">
-                                            <input type="radio" name="speed" value="0.8"
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">慢速 (0.8x)</span>
-                                        </label>
-                                        <label class="flex items-center">
-                                            <input type="radio" name="speed" value="1.0" checked
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">正常 (1.0x)</span>
-                                        </label>
-                                        <label class="flex items-center">
-                                            <input type="radio" name="speed" value="1.2"
-                                                class="checkbox-custom">
-                                            <span class="ml-2 text-sm">快速 (1.2x)</span>
-                                        </label>
+                                <!-- AI 音色推荐说明 -->
+                                <div id="ai-voice-info" class="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-200">
+                                    <div class="flex items-start">
+                                        <svg class="h-5 w-5 text-teal-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-teal-800">AI 智能音色推荐</p>
+                                            <p class="text-xs text-teal-700 mt-1">
+                                                系统会自动分析对话内容，智能推荐最合适的音色配置（如：校园场景的老师和学生、医疗场景的医生和患者等）。生成后可在题目级别进行调整。
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -590,8 +552,6 @@
         function updateTTSOptionsVisibility() {
             const listeningChecked = document.querySelector('input[name="question_type"][value="listening"]').checked;
             const ttsOptions = document.getElementById('tts-options');
-            const voiceSelection = document.getElementById('voice-selection');
-            const speedSelection = document.getElementById('speed-selection');
             const generateAudioCheckbox = document.getElementById('generate_audio');
 
             if (listeningChecked) {
@@ -601,24 +561,14 @@
                 // 取消勾选生成音频
                 if (generateAudioCheckbox) {
                     generateAudioCheckbox.checked = false;
-                    voiceSelection.classList.add('hidden');
-                    speedSelection.classList.add('hidden');
                 }
             }
         }
 
-        // 生成音频复选框变化
+        // 生成音频复选框变化（不再需要显示/隐藏音色选择）
         document.getElementById('generate_audio').addEventListener('change', function() {
-            const voiceSelection = document.getElementById('voice-selection');
-            const speedSelection = document.getElementById('speed-selection');
-
-            if (this.checked) {
-                voiceSelection.classList.remove('hidden');
-                speedSelection.classList.remove('hidden');
-            } else {
-                voiceSelection.classList.add('hidden');
-                speedSelection.classList.add('hidden');
-            }
+            // AI 会自动推荐音色，这里不需要额外的显示控制
+            console.log('音频生成:', this.checked ? '启用' : '禁用');
         });
 
         // 表单提交
@@ -776,6 +726,7 @@
                             </div>
                         </div>
                         <input type="hidden" id="qr_code_data_url" value="${data.qr_code_data_url}">
+                        <input type="hidden" id="homework_id" value="${data.homework_id || ''}">
                         <input type="hidden" id="homework_short_id" value="${data.short_id}">
                         <input type="hidden" id="view_url" value="${data.view_url}">
                     </div>
@@ -862,6 +813,56 @@
             let html = `<div class="mb-4 p-4 bg-gray-50 rounded-lg">`;
             html += `<p class="font-medium text-gray-800 mb-3">${index}. ${renderQuestionText(q)}</p>`;
 
+            // 听力题：显示音频和音色配置
+            if (q.audio_url) {
+                html += `
+                    <div class="ml-4 mb-3">
+                        <audio controls class="w-full max-w-md" src="${q.audio_url}">
+                            您的浏览器不支持音频播放。
+                        </audio>
+                    </div>
+                `;
+            }
+
+            // 听力题：显示音色配置和调整按钮
+            if (q.script && q.voice_config) {
+                try {
+                    const voiceConfig = typeof q.voice_config === 'string' ? JSON.parse(q.voice_config) : q.voice_config;
+                    const voiceList = Object.entries(voiceConfig).map(([speaker, voice]) =>
+                        `<span class="inline-block bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs mr-2 mb-2">
+                            ${speaker}: ${voice}
+                        </span>`
+                    ).join('');
+
+                    html += `
+                        <div class="ml-4 mb-3 p-3 bg-teal-50 rounded-lg border border-teal-200">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-medium text-teal-700 mb-1">🎤 AI 推荐音色配置</p>
+                                    <div class="flex flex-wrap">${voiceList}</div>
+                                </div>
+                                <button onclick="adjustQuestionVoice(${index})"
+                                        class="px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-colors flex items-center">
+                                    <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                    调整音色
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    console.log('显示音色配置:', voiceConfig);  // 调试日志
+                } catch (e) {
+                    console.error('解析音色配置失败:', e);
+                }
+            } else {
+                // 调试：检查为什么没有显示音色配置
+                if (q.script) {
+                    console.log('有 script 但没有 voice_config');
+                    console.log('voice_config:', q.voice_config);
+                }
+            }
+
             // 选项
             if (q.options && q.options.length > 0) {
                 html += `<div class="space-y-2 ml-4">`;
@@ -886,6 +887,82 @@
 
             html += `</div>`;
             return html;
+        }
+
+        // 调整题目音色
+        window.adjustQuestionVoice = async function(questionIndex) {
+            // 获取当前作业 ID（从生成响应中保存的）
+            const homeworkId = document.getElementById('homework_id')?.value;
+            if (!homeworkId) {
+                showToast('无法获取作业信息', 'error');
+                return;
+            }
+
+            // 显示音色选择对话框
+            const scene = prompt('请选择场景类型：\n1. 默认\n2. 校园\n3. 医疗\n4. 购物\n5. 家庭\n6. 商务\n\n请输入数字 (1-6)：');
+
+            const scenes = {
+                '1': 'default',
+                '2': 'school',
+                '3': 'medical',
+                '4': 'shopping',
+                '5': 'family',
+                '6': 'business'
+            };
+
+            if (scene && scenes[scene]) {
+                const selectedScene = scenes[scene];
+                await regenerateQuestionWithVoice(homeworkId, questionIndex - 1, selectedScene);
+            }
+        };
+
+        // 使用指定音色重新生成题目
+        async function regenerateQuestionWithVoice(homeworkId, questionIndex, scene) {
+            const token = localStorage.getItem('access_token');
+
+            // 获取场景对应的音色配置
+            const voiceConfigs = {
+                'default': { M: 'en-US-ChristopherNeural', W: 'en-US-AriaNeural' },
+                'school': { M: 'en-US-BrianNeural', W: 'en-US-JennyNeural' },
+                'medical': { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural' },
+                'shopping': { M: 'en-US-ChristopherNeural', W: 'en-US-AriaNeural' },
+                'family': { M: 'en-US-ChristopherNeural', W: 'en-US-MichelleNeural' },
+                'business': { M: 'en-US-BrianNeural', W: 'en-US-MichelleNeural' }
+            };
+
+            const voiceConfig = JSON.stringify(voiceConfigs[scene]);
+
+            try {
+                showToast('正在重新生成音频...', 'info');
+
+                const response = await fetch(`/api/v1/homework/${homeworkId}/regenerate-question`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question_index: questionIndex,
+                        voice_config: voiceConfig,
+                        custom_prompt: `使用${scene}场景的音色配置重新生成音频`
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('音色调整成功！', 'success');
+                    // 重新加载页面结果
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showToast(result.error || '音色调整失败', 'error');
+                }
+            } catch (error) {
+                console.error('音色调整失败:', error);
+                showToast('音色调整失败', 'error');
+            }
         }
 
         // 渲染问题文本

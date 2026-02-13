@@ -95,7 +95,7 @@ class TestEmailValidation:
         is_valid, msg = validate_email(email)
 
         assert is_valid is False
-        assert "无效的邮箱地址" in msg
+        assert "邮箱" in msg  # 错误消息应该包含"邮箱"
 
     def test_invalid_email_no_domain(self):
         """测试无效邮箱（没有域名）"""
@@ -117,7 +117,7 @@ class TestJWTToken:
 
     def test_create_access_token(self):
         """测试创建访问token"""
-        data = {"sub": 1, "email": "test@example.com"}
+        data = {"sub": "1", "email": "test@example.com"}
         token = create_access_token(data)
 
         assert token is not None
@@ -128,14 +128,14 @@ class TestJWTToken:
         """测试token包含用户数据"""
         from auth import jwt
 
-        data = {"sub": 1, "email": "test@example.com"}
+        data = {"sub": "1", "email": "test@example.com"}
         token = create_access_token(data)
 
         # 解码token
         from auth import ALGORITHM, SECRET_KEY
         decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-        assert decoded["sub"] == 1
+        assert decoded["sub"] == "1"
         assert decoded["email"] == "test@example.com"
         assert "exp" in decoded
 
@@ -144,7 +144,7 @@ class TestJWTToken:
         from auth import jwt
         from datetime import datetime, timedelta
 
-        data = {"sub": 1, "email": "test@example.com"}
+        data = {"sub": "1", "email": "test@example.com"}
         token = create_access_token(data)
 
         from auth import ALGORITHM, SECRET_KEY

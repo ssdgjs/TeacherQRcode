@@ -1,12 +1,28 @@
 """
-TTS服务层 - 火山引擎集成
+TTS服务层 - 支持本地和云端TTS
 """
 import os
 import uuid
 from typing import Optional, Dict, Any
 from datetime import datetime
-from volcengine.Api import  Api as TtsApi
 from pathlib import Path
+
+# 尝试导入火山引擎API
+try:
+    from volcengine.Api import Api as TtsApi
+except ImportError:
+    class TtsApi:
+        def __init__(self, host, region):
+            self.host = host
+            self.region = region
+
+
+# 本地 TTS 导入
+try:
+    from local_tts import get_local_tts
+    LOCAL_TTS_AVAILABLE = True
+except ImportError:
+    LOCAL_TTS_AVAILABLE = False
 
 
 class VolcengineTTSService:
@@ -272,3 +288,101 @@ def validate_tts_params(
         return False, "语速必须在0.5-2.0之间"
 
     return True, ""
+
+
+# ==================== 本地 TTS 服务 ====================
+
+class LocalTTSService:
+    """本地 TTS 服务（ChatTTS/edge-tts）"""
+
+    def __init__(self):
+        """初始化本地 TTS 服务"""
+        if not LOCAL_TTS_AVAILABLE:
+            raise RuntimeError("本地 TTS 不可用，请先安装依赖")
+
+        self.tts = get_local_tts()
+        self.storage_dir = Path(os.getenv("UPLOAD_DIR", "static/uploads"))
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate_audio(
+        self,
+        text: str,
+        voice: str = "en_us_female",
+        speed: float = 1.0
+    ) -> dict:
+        """
+        生成音频
+
+        Args:
+            text: 要转换的文本
+            voice: 发音类型
+            speed: 语速（本地TTS可能忽略此参数）
+
+        Returns:
+            dict: 生成结果
+        """
+        try:
+            # 生成文件路径
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            filename = f"tts_{timestamp}.wav"
+            file_path = self.storage_dir / filename
+
+            # 映射 voice 名称
+            voice_map = {
+                "en_us_male": "male",
+                "en_us_female": "female",
+                "en_gb_male": "male",
+                "en_gb_female": "female"
+            }
+            mapped_voice = voice_map.get(voice, "female")
+
+            # 调用本地 TTS
+            success, message, result_path = self.tts.text_to_speech(
+                text=text,
+                output_path=str(file_path),
+                voice=mapped_voice
+            )
+
+            if success and result_path:
+                # 获取文件大小
+                file_size = os.path.getsize(result_path)
+
+                return {
+                    "success": True,
+                    "filename": filename,
+                    "path": result_path,
+                    "url": f"/static/uploads/{filename}",
+                    "size": file_size
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": message
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"本地TTS生成失败: {str(e)}"
+            }
+
+
+def get_tts_service() -> VolcengineTTSService | LocalTTSService:
+    """
+    获取 TTS 服务（优先使用本地TTS）
+
+    Returns:
+        TTS服务实例
+    """
+    # 优先使用本地 TTS
+    if LOCAL_TTS_AVAILABLE:
+        try:
+            return LocalTTSService()
+        except:
+            pass
+
+    # 回退到云端 TTS
+    try:
+        return VolcengineTTSService()
+    except:
+        raise RuntimeError("没有可用的 TTS 服务")

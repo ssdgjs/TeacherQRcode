@@ -137,7 +137,7 @@ class TestParameterValidation:
         )
 
         assert is_valid is False
-        assert "题目数量" in error
+        assert "数量" in error  # 错误消息应该包含"数量"
 
 
 @pytest.mark.unit

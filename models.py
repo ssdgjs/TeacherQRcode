@@ -66,6 +66,24 @@ class HomeworkItem(SQLModel, table=True):
     question_types: Optional[str] = Field(default=None, max_length=100)  # JSON格式的题型列表
     created_at: datetime = Field(default_factory=datetime.now)
     expires_at: Optional[datetime] = Field(default=None)  # 扩展字段，预留
+    # 新增字段：关联的抽卡历史（通过反向关联）
+
+
+class GenerationHistory(SQLModel, table=True):
+    """抽卡历史记录表"""
+    __tablename__ = "generation_history"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    homework_id: int = Field(foreign_key="homework_items.id", index=True, description="关联的作业ID")
+    user_id: int = Field(foreign_key="users.id", index=True, description="用户ID")
+    version: int = Field(default=1, description="版本号（从1开始）")
+    content: str = Field(description="完整的生成内容（JSON格式）")
+    prompt: Optional[str] = Field(default=None, max_length=2000, description="使用的提示词")
+    previous_context: Optional[str] = Field(default=None, description="之前的历史上下文（最多5次）")
+    voice_config: Optional[str] = Field(default=None, max_length=500, description="音色配置（JSON格式，仅听力题）")
+    is_active: bool = Field(default=True, index=True, description="是否是当前使用的版本")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    extra_data: Optional[str] = Field(default=None, description="额外元数据（AI参数等）")
 
 
 # ==================== Pydantic Models for API ====================
@@ -363,10 +381,12 @@ def save_homework(
     audio_path: Optional[str] = None,
     audio_filename: Optional[str] = None,
     audio_size: Optional[int] = None,
-    homework_type: str = "text"
+    homework_type: str = "text",
+    user_id: Optional[int] = None
 ) -> HomeworkItem:
     """保存作业到数据库"""
     homework = HomeworkItem(
+        user_id=user_id,  # 添加 user_id
         short_id=short_id,
         content=content,
         title=title,
@@ -419,3 +439,131 @@ def delete_expired_homeworks(session: Session, days: int = 30):
 
     session.commit()
     return deleted_count
+
+
+# ==================== 抽卡历史操作 ====================
+
+def create_generation_history(
+    session: Session,
+    homework_id: int,
+    user_id: int,
+    content: str,
+    prompt: Optional[str] = None,
+    previous_context: Optional[str] = None,
+    voice_config: Optional[str] = None,
+    metadata: Optional[str] = None
+) -> GenerationHistory:
+    """
+    创建新的抽卡历史记录
+
+    自动处理版本号和旧版本标记
+    """
+    # 获取当前最大版本号
+    statement = select(GenerationHistory).where(
+        GenerationHistory.homework_id == homework_id
+    ).order_by(GenerationHistory.version.desc())
+    latest = session.exec(statement).first()
+
+    next_version = (latest.version + 1) if latest else 1
+
+    # 如果不是第一个版本，将旧版本标记为非活跃
+    if latest and latest.is_active:
+        latest.is_active = False
+        session.add(latest)
+
+    # 创建新历史记录
+    history = GenerationHistory(
+        homework_id=homework_id,
+        user_id=user_id,
+        version=next_version,
+        content=content,
+        prompt=prompt,
+        previous_context=previous_context,
+        voice_config=voice_config,
+        is_active=True,
+        metadata=metadata
+    )
+    session.add(history)
+    session.commit()
+    session.refresh(history)
+    return history
+
+
+def get_generation_history(session: Session, homework_id: int) -> list[GenerationHistory]:
+    """获取某个作业的所有抽卡历史"""
+    statement = select(GenerationHistory).where(
+        GenerationHistory.homework_id == homework_id
+    ).order_by(GenerationHistory.version.desc())
+    return session.exec(statement).all()
+
+
+def get_active_generation(session: Session, homework_id: int) -> Optional[GenerationHistory]:
+    """获取某个作业当前使用的版本"""
+    statement = select(GenerationHistory).where(
+        GenerationHistory.homework_id == homework_id,
+        GenerationHistory.is_active == True
+    )
+    return session.exec(statement).first()
+
+
+def set_active_generation(session: Session, history_id: int) -> Optional[GenerationHistory]:
+    """
+    设置某个版本为当前使用版本
+
+    会将同一作业的其他版本标记为非活跃
+    """
+    history = session.get(GenerationHistory, history_id)
+    if not history:
+        return None
+
+    homework_id = history.homework_id
+
+    # 将同作业的其他版本标记为非活跃
+    statement = select(GenerationHistory).where(
+        GenerationHistory.homework_id == homework_id,
+        GenerationHistory.is_active == True,
+        GenerationHistory.id != history_id
+    )
+    others = session.exec(statement).all()
+    for other in others:
+        other.is_active = False
+        session.add(other)
+
+    # 设置当前版本为活跃
+    history.is_active = True
+    session.add(history)
+    session.commit()
+    session.refresh(history)
+    return history
+
+
+def build_context_from_history(session: Session, homework_id: int, max_history: int = 5) -> str:
+    """
+    从历史记录构建上下文（用于AI抽卡）
+
+    Args:
+        homework_id: 作业ID
+        max_history: 最多保留的历史次数（默认5次）
+
+    Returns:
+        str: 格式化的历史上下文字符串
+    """
+    statement = select(GenerationHistory).where(
+        GenerationHistory.homework_id == homework_id
+    ).order_by(GenerationHistory.version.desc()).limit(max_history)
+    histories = session.exec(statement).all()
+
+    if not histories:
+        return ""
+
+    # 按时间顺序（从旧到新）构建上下文
+    contexts = []
+    for h in reversed(histories):
+        context_parts = [f"## 版本 {h.version}"]
+        if h.prompt:
+            context_parts.append(f"提示词: {h.prompt}")
+        if h.voice_config:
+            context_parts.append(f"音色配置: {h.voice_config}")
+        contexts.append("\n".join(context_parts))
+
+    return "\n\n---\n\n".join(contexts)

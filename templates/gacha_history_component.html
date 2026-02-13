@@ -1,0 +1,449 @@
+<!-- 抽卡历史界面组件 -->
+<!-- 可以集成到 history.html 或作为独立页面使用 -->
+
+<script>
+// ==================== 抽卡历史管理 ====================
+
+/**
+ * 加载某个作业的抽卡历史
+ * @param {number} homeworkId - 作业ID
+ */
+async function loadGachaHistory(homeworkId) {
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`/api/v1/homework/${homeworkId}/history`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            displayGachaHistory(result.data.histories, homeworkId);
+        } else {
+            showToast(result.error || '加载历史记录失败', 'error');
+        }
+    } catch (error) {
+        console.error('加载历史记录失败:', error);
+        showToast('加载历史记录失败', 'error');
+    }
+}
+
+/**
+ * 显示抽卡历史列表
+ * @param {Array} histories - 历史记录数组
+ * @param {number} homeworkId - 作业ID
+ */
+function displayGachaHistory(histories, homeworkId) {
+    const container = document.getElementById('gacha-history-container');
+    if (!container) return;
+
+    if (histories.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="mt-2">暂无抽卡历史</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="space-y-4">';
+
+    histories.forEach((history, index) => {
+        const isActive = history.is_active;
+        const activeBadge = isActive
+            ? '<span class="ml-2 px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">当前版本</span>'
+            : '';
+
+        html += `
+            <div class="bg-white rounded-2xl shadow-md p-6 card-hover ${isActive ? 'ring-2 ring-teal-500' : ''}">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            版本 ${history.version}
+                        </h3>
+                        ${activeBadge}
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        ${formatTimestamp(history.created_at)}
+                    </div>
+                </div>
+
+                ${history.prompt ? `
+                    <div class="mb-3">
+                        <span class="text-sm font-medium text-gray-600">提示词：</span>
+                        <p class="text-sm text-gray-700 mt-1 p-3 bg-gray-50 rounded-lg">${escapeHtml(history.prompt)}</p>
+                    </div>
+                ` : ''}
+
+                ${history.voice_config ? `
+                    <div class="mb-3">
+                        <span class="text-sm font-medium text-gray-600">音色配置：</span>
+                        <pre class="text-xs text-gray-700 mt-1 p-3 bg-gray-50 rounded-lg overflow-x-auto">${escapeHtml(history.voice_config)}</pre>
+                    </div>
+                ` : ''}
+
+                <div class="flex gap-2 mt-4">
+                    ${!isActive ? `
+                        <button onclick="selectHistoryVersion(${homeworkId}, ${history.id})"
+                                class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 btn-hover text-sm">
+                            切换到此版本
+                        </button>
+                    ` : ''}
+
+                    <button onclick="previewHistoryContent(${history.id})"
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 btn-hover text-sm">
+                        预览内容
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+/**
+ * 重新抽卡（重新生成整个作业）
+ * @param {number} homeworkId - 作业ID
+ */
+async function regenerateHomework(homeworkId) {
+    const customPrompt = prompt('请输入自定义提示词（可选）：');
+    if (customPrompt !== null) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const response = await fetch(`/api/v1/homework/${homeworkId}/regenerate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    custom_prompt: customPrompt
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('重新生成成功！', 'success');
+                // 重新加载历史
+                loadGachaHistory(homeworkId);
+            } else {
+                showToast(result.error || '重新生成失败', 'error');
+            }
+        } catch (error) {
+            console.error('重新生成失败:', error);
+            showToast('重新生成失败', 'error');
+        }
+    }
+}
+
+/**
+ * 针对单个题目重新抽卡
+ * @param {number} homeworkId - 作业ID
+ * @param {number} questionIndex - 题目索引
+ */
+async function regenerateQuestion(homeworkId, questionIndex) {
+    const customPrompt = prompt(`请输入针对第 ${questionIndex + 1} 题的自定义提示词（可选）：`);
+    if (customPrompt !== null) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const response = await fetch(`/api/v1/homework/${homeworkId}/regenerate-question`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    question_index: questionIndex,
+                    custom_prompt: customPrompt
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(`第 ${questionIndex + 1} 题重新生成成功！`, 'success');
+                // 重新加载历史
+                loadGachaHistory(homeworkId);
+            } else {
+                showToast(result.error || '重新生成失败', 'error');
+            }
+        } catch (error) {
+            console.error('重新生成失败:', error);
+            showToast('重新生成失败', 'error');
+        }
+    }
+}
+
+/**
+ * 选择某个历史版本作为当前版本
+ * @param {number} homeworkId - 作业ID
+ * @param {number} historyId - 历史记录ID
+ */
+async function selectHistoryVersion(homeworkId, historyId) {
+    if (!confirm('确定要切换到此版本吗？')) return;
+
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`/api/v1/homework/${homeworkId}/select/${historyId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.data.message, 'success');
+            // 重新加载历史
+            loadGachaHistory(homeworkId);
+        } else {
+            showToast(result.error || '切换版本失败', 'error');
+        }
+    } catch (error) {
+        console.error('切换版本失败:', error);
+        showToast('切换版本失败', 'error');
+    }
+}
+
+/**
+ * 预览历史内容
+ * @param {number} historyId - 历史记录ID
+ */
+function previewHistoryContent(historyId) {
+    // 这里可以实现一个模态框显示历史内容
+    // 简化版本：使用 alert
+    alert('预览功能待实现：历史记录 ID ' + historyId);
+}
+
+/**
+ * 显示音色选择器（针对听力题）
+ * @param {number} homeworkId - 作业ID
+ * @param {number} questionIndex - 题目索引（可选）
+ */
+function showVoiceSelector(homeworkId, questionIndex = null) {
+    // 预定义的音色配置
+    const voiceConfigs = [
+        { name: '默认配置', config: null },
+        { name: '男低音-女高音', config: JSON.stringify({ M: 'en-US-GuyNeural', W: 'en-US-AriaNeural' }) },
+        { name: '男中音-女中音', config: JSON.stringify({ M: 'en-US-ChristopherNeural', W: 'en-US-JennyNeural' }) },
+        { name: '年轻男-年轻女', config: JSON.stringify({ M: 'en-US-EricNeural', W: 'en-US-MichelleNeural' }) },
+    ];
+
+    let html = `
+        <div id="voice-selector-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">选择音色配置</h3>
+                <div class="space-y-3">
+    `;
+
+    voiceConfigs.forEach((vc, index) => {
+        html += `
+            <button onclick="applyVoiceConfig(${homeworkId}, ${questionIndex}, '${vc.config || ''}')"
+                    class="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                <div class="font-medium text-gray-800">${vc.name}</div>
+                ${vc.config ? `<div class="text-xs text-gray-500 mt-1">${vc.config}</div>` : ''}
+            </button>
+        `;
+    });
+
+    html += `
+                </div>
+                <button onclick="closeVoiceSelector()"
+                        class="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                    取消
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+/**
+ * 应用音色配置
+ * @param {number} homeworkId - 作业ID
+ * @param {number|null} questionIndex - 题目索引
+ * @param {string} voiceConfig - 音色配置（JSON字符串）
+ */
+async function applyVoiceConfig(homeworkId, questionIndex, voiceConfig) {
+    closeVoiceSelector();
+
+    if (questionIndex !== null) {
+        // 针对单个题目重新生成
+        await regenerateQuestionWithVoice(homeworkId, questionIndex, voiceConfig);
+    } else {
+        // 重新生成整个作业
+        await regenerateHomeworkWithVoice(homeworkId, voiceConfig);
+    }
+}
+
+/**
+ * 使用指定音色重新生成题目
+ */
+async function regenerateQuestionWithVoice(homeworkId, questionIndex, voiceConfig) {
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`/api/v1/homework/${homeworkId}/regenerate-question`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                question_index: questionIndex,
+                voice_config: voiceConfig
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(`第 ${questionIndex + 1} 题重新生成成功！`, 'success');
+            loadGachaHistory(homeworkId);
+        } else {
+            showToast(result.error || '重新生成失败', 'error');
+        }
+    } catch (error) {
+        console.error('重新生成失败:', error);
+        showToast('重新生成失败', 'error');
+    }
+}
+
+/**
+ * 使用指定音色重新生成作业
+ */
+async function regenerateHomeworkWithVoice(homeworkId, voiceConfig) {
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`/api/v1/homework/${homeworkId}/regenerate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                voice_config: voiceConfig
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('重新生成成功！', 'success');
+            loadGachaHistory(homeworkId);
+        } else {
+            showToast(result.error || '重新生成失败', 'error');
+        }
+    } catch (error) {
+        console.error('重新生成失败:', error);
+        showToast('重新生成失败', 'error');
+    }
+}
+
+/**
+ * 关闭音色选择器
+ */
+function closeVoiceSelector() {
+    const modal = document.getElementById('voice-selector-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// ==================== 工具函数 ====================
+
+/**
+ * 格式化时间戳
+ * @param {string} timestamp - ISO 时间戳
+ * @returns {string} 格式化的时间
+ */
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+
+    if (diff < 60000) { // 小于1分钟
+        return '刚刚';
+    } else if (diff < 3600000) { // 小于1小时
+        return Math.floor(diff / 60000) + ' 分钟前';
+    } else if (diff < 86400000) { // 小于1天
+        return Math.floor(diff / 3600000) + ' 小时前';
+    } else {
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
+/**
+ * 转义 HTML
+ * @param {string} text - 要转义的文本
+ * @returns {string} 转义后的文本
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * 显示 Toast 通知
+ * @param {string} message - 消息内容
+ * @param {string} type - 类型 (success, error, info)
+ */
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container') || createToastContainer();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const icons = {
+        success: '<svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>',
+        error: '<svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>',
+        info: '<svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+    };
+
+    toast.innerHTML = `${icons[type]}<span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('toast-exit');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+/**
+ * 创建 Toast 容器
+ */
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-notification';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<!-- HTML 模板：抽卡历史容器 -->
+<!--
+<div id="gacha-history-container"></div>
+
+使用示例：
+<script>
+    // 加载某个作业的抽卡历史
+    loadGachaHistory(homeworkId);
+</script>
+-->

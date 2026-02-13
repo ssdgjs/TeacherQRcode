@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, Request, Response, UploadFile, File, Form, HTTPException, Depends, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -19,7 +19,9 @@ from models import (
     HomeworkResponse, delete_expired_homeworks, get_homework_by_short_id,
     save_homework, delete_homework, User, UserResponse,
     get_user_by_email, create_user, update_last_login,
-    get_user_by_id, QuotaResponse, QuotaConsumeResponse
+    get_user_by_id, QuotaResponse, QuotaConsumeResponse,
+    GenerationHistory, get_generation_history, get_active_generation,
+    create_generation_history, set_active_generation, build_context_from_history
 )
 from auth import (
     UserLogin, UserRegister, Token, get_current_user,
@@ -56,6 +58,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # 忽略额外的环境变量
 
     @property
     def allowed_extensions_list(self) -> list:
@@ -94,7 +97,24 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # 模板引擎
 templates_dir = Path(os.getenv("TEMPLATES_DIR", str(BASE_DIR / "templates")))
+
+# 创建 Jinja2 环境并添加自定义过滤器
+import jinja2
+from utils import format_timestamp, format_file_size
+
+env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(templates_dir)),
+    autoescape=jinja2.select_autoescape(['html', 'xml'])
+)
+
+# 添加自定义过滤器
+env.filters['format_timestamp'] = format_timestamp
+env.filters['format_file_size'] = format_file_size
+
+# 使用自定义环境创建 Jinja2Templates
 templates = Jinja2Templates(directory=str(templates_dir))
+# 替换内部环境为自定义环境
+templates.env = env
 
 
 # ==================== Startup Event ====================
@@ -465,6 +485,103 @@ async def generate_homework(
         # 提取标题
         title = f"{homework_data['grade']} - {homework_data['topic']}"
 
+        # 检查是否有听力题，如果有则生成音频
+        audio_path = None
+        audio_filename = None
+        audio_size = None
+        homework_type = "ai_generated"
+
+        # 检查题型中是否包含listening
+        has_listening = any(qt.get("type") == "listening" for qt in request_data.question_types)
+
+        print(f"🔍 DEBUG: has_listening = {has_listening}")  # 调试输出
+        print(f"🔍 DEBUG: homework_data has questions = {homework_data.get('questions') is not None}")
+
+        if has_listening and homework_data.get("questions"):
+            print(f"🔍 DEBUG: 进入 TTS 生成流程")  # 调试输出
+            try:
+                from local_tts import get_local_tts
+                from ai_service import get_voice_recommender
+
+                tts = get_local_tts()
+                recommender = get_voice_recommender()
+                print(f"🔍 DEBUG: TTS 服务获取成功")  # 调试输出
+
+                # 为每个听力题生成音频
+                audio_files = []
+                questions_with_audio = []
+
+                for idx, question in enumerate(homework_data["questions"]):
+                    if "script" in question:  # 听力题有script
+                        print(f"🔍 DEBUG: 处理题目 {idx + 1}, 有 script")  # 调试输出
+                        # 生成音频文件
+                        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                        filename = f"listening_{short_id}_{idx}.mp3"
+                        file_path = UPLOAD_DIR / filename
+
+                        print(f"🔍 DEBUG: 准备调用 TTS, 文件: {filename}")  # 调试输出
+
+                        # AI 推荐音色配置
+                        voice_config = None
+                        try:
+                            recommendation = recommender.recommend_voice_config(question["script"])
+                            voice_config = json.dumps(recommendation["voice_map"], ensure_ascii=False)
+                            print(f"🔍 DEBUG: AI 推荐音色: {recommendation['preset_name']}")
+                            print(f"🔍 DEBUG: 音色映射: {recommendation['voice_map']}")
+                        except Exception as e:
+                            print(f"⚠️  音色推荐失败，使用默认配置: {e}")
+
+                        # 调用TTS - 使用对话合成功能（自动识别男女声）
+                        success, message, result_path = tts.dialogue_to_speech(
+                            script=question["script"],
+                            output_path=str(file_path)
+                        )
+
+                        print(f"🔍 DEBUG: TTS 结果: success={success}, message={message}")  # 调试输出
+
+                        if success and result_path:
+                            # 添加音频URL到题目
+                            question["audio_url"] = f"/static/uploads/{filename}"
+                            # 保存音色配置到题目中
+                            if voice_config:
+                                question["voice_config"] = voice_config
+                                print(f"✅ 已设置 question['voice_config']: {voice_config}")
+                            else:
+                                print(f"⚠️  voice_config 为空，未设置")
+                            audio_files.append(filename)
+                            questions_with_audio.append(question)
+                            print(f"✅ 音频生成成功: {filename}")
+                            print(f"🔍 DEBUG: question keys: {list(question.keys())}")
+                            print(f"🔍 DEBUG: question['voice_config']: {question.get('voice_config', 'NOT SET')}")
+                        else:
+                            # TTS失败，保留题目但没有音频
+                            questions_with_audio.append(question)
+                            print(f"❌ TTS 生成失败: {message}")  # 调试输出
+                    else:
+                        questions_with_audio.append(question)
+                        print(f"🔍 DEBUG: 题目 {idx + 1} 没有 script")  # 调试输出
+
+                # 更新questions数据
+                homework_data["questions"] = questions_with_audio
+                print(f"🔍 DEBUG: 更新后的 questions 数量: {len(homework_data['questions'])}")
+
+                # 检查每个题目是否有 voice_config
+                for idx, q in enumerate(homework_data["questions"]):
+                    if "script" in q:
+                        print(f"🔍 DEBUG: 题目 {idx + 1} voice_config: {q.get('voice_config', 'NOT SET')}")
+
+                # 如果有音频生成，更新content和homework_type
+                if audio_files:
+                    content_json["questions"] = questions_with_audio
+                    content = json.dumps(content_json, ensure_ascii=False, indent=2)
+                    homework_type = "listening"  # 标记为听力作业
+                    print(f"✅ 听力作业生成完成，包含 {len(audio_files)} 个音频文件")  # 调试输出
+
+            except Exception as e:
+                print(f"❌ TTS生成失败，但继续保存作业: {e}")  # 错误输出
+                import traceback
+                traceback.print_exc()  # 打印详细错误
+
         # 保存到数据库
         homework = save_homework(
             session=session,
@@ -472,12 +589,23 @@ async def generate_homework(
             content=content,
             title=title,
             user_id=current_user.user_id,
-            homework_type="ai_generated"
+            homework_type=homework_type,
+            audio_path=audio_path,
+            audio_filename=audio_filename,
+            audio_size=audio_size
         )
 
         # 5. 生成短链接和二维码
         view_url = f"{settings.base_url}/v/{short_id}"
         qr_data_url = generate_qr_code(view_url, 300, "M")
+
+        # 最终调试：检查即将返回的数据
+        print(f"🔍 DEBUG: 即将返回 homework_data")
+        if homework_data.get("questions"):
+            for idx, q in enumerate(homework_data["questions"][:2]):  # 只检查前2个
+                if "script" in q:
+                    print(f"🔍 DEBUG: 返回数据 题目{idx+1} keys: {list(q.keys())}")
+                    print(f"🔍 DEBUG: 返回数据 题目{idx+1} voice_config: {q.get('voice_config', 'NOT SET')}")
 
         return {
             "success": True,
@@ -851,6 +979,382 @@ async def delete_homework_endpoint(
 
     except Exception as e:
         return {"success": False, "error": f"删除作业失败: {str(e)}"}
+
+
+# ==================== 抽卡历史相关 API ====================
+
+@app.get("/api/v1/homework/{homework_id}/history")
+async def get_homework_history(
+    homework_id: int,
+    current_user = Depends(get_current_user)
+):
+    """
+    获取作业的抽卡历史
+
+    Args:
+        homework_id: 作业ID
+        current_user: 当前用户
+
+    Returns:
+        JSON: 抽卡历史列表
+    """
+    session = next(get_session())
+
+    try:
+        # 验证作业所有权
+        homework = session.get(HomeworkItem, homework_id)
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权访问此作业"}
+
+        # 获取历史记录
+        histories = get_generation_history(session, homework_id)
+
+        # 格式化返回数据
+        history_list = []
+        for h in histories:
+            import json
+            try:
+                content = json.loads(h.content)
+            except:
+                content = h.content
+
+            history_list.append({
+                "id": h.id,
+                "version": h.version,
+                "content": content,
+                "prompt": h.prompt,
+                "voice_config": h.voice_config,
+                "is_active": h.is_active,
+                "created_at": h.created_at.isoformat()
+            })
+
+        return {
+            "success": True,
+            "data": {
+                "homework_id": homework_id,
+                "histories": history_list,
+                "total": len(history_list)
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"获取历史记录失败: {str(e)}"}
+
+
+@app.post("/api/v1/homework/{homework_id}/regenerate")
+async def regenerate_homework(
+    homework_id: int,
+    custom_prompt: Optional[str] = None,
+    voice_config: Optional[str] = None,
+    current_user = Depends(get_current_user)
+):
+    """
+    重新抽卡（重新生成整个作业）
+
+    Args:
+        homework_id: 作业ID
+        custom_prompt: 自定义提示词（可选）
+        voice_config: 音色配置（仅听力题，可选，JSON格式）
+        current_user: 当前用户
+
+    Returns:
+        JSON: 新生成的作业数据
+    """
+    session = next(get_session())
+
+    try:
+        # 验证作业所有权
+        homework = session.get(HomeworkItem, homework_id)
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权修改此作业"}
+
+        # 检查并消费额度
+        success, message, result = consume_user_quota(session, current_user.user_id)
+        if not success:
+            return {"success": False, "error": message}
+
+        # 构建上下文（最多5次历史）
+        previous_context = build_context_from_history(session, homework_id, max_history=5)
+
+        # 获取原始生成参数
+        import json
+        original_content = json.loads(homework.content)
+
+        # 调用 AI 重新生成
+        ai_service = get_ai_service()
+
+        # 构建新的提示词
+        prompt = custom_prompt if custom_prompt else "请重新生成一组类似题目，保持相同难度和题型"
+        if previous_context:
+            prompt += f"\n\n之前的生成历史：\n{previous_context}"
+
+        # 重新生成题目
+        new_homework_data = ai_service.generate_questions(
+            grade=original_content.get("grade", "高中"),
+            topic=original_content.get("topic", "综合练习"),
+            difficulty=original_content.get("difficulty", "medium"),
+            question_types=original_content.get("question_types", []),
+            custom_prompt=prompt
+        )
+
+        # 如果是听力题且指定了音色配置，重新生成音频
+        audio_files = []
+        if voice_config:
+            try:
+                from local_tts import get_local_tts
+                tts = get_local_tts()
+
+                # 解析音色配置
+                voice_map = json.loads(voice_config) if isinstance(voice_config, str) else voice_config
+
+                for idx, question in enumerate(new_homework_data.get("questions", [])):
+                    if "script" in question:
+                        filename = f"listening_{homework.short_id}_v{question.get('version', 1)}_{idx}.mp3"
+                        file_path = UPLOAD_DIR / filename
+
+                        success, message, result_path = tts.dialogue_to_speech(
+                            script=question["script"],
+                            output_path=str(file_path),
+                            voice_map=voice_map
+                        )
+
+                        if success and result_path:
+                            question["audio_url"] = f"/static/uploads/{filename}"
+                            audio_files.append(filename)
+
+            except Exception as e:
+                print(f"❌ 音频生成失败: {e}")
+
+        # 保存抽卡历史
+        new_content_json = {
+            **original_content,
+            "questions": new_homework_data.get("questions", []),
+            "generated_at": datetime.now().isoformat()
+        }
+
+        create_generation_history(
+            session=session,
+            homework_id=homework_id,
+            user_id=current_user.user_id,
+            content=json.dumps(new_content_json, ensure_ascii=False, indent=2),
+            prompt=custom_prompt,
+            previous_context=previous_context,
+            voice_config=voice_config,
+            metadata=json.dumps({"audio_files": audio_files}, ensure_ascii=False)
+        )
+
+        # 更新作业内容（保留最新版本）
+        homework.content = json.dumps(new_content_json, ensure_ascii=False, indent=2)
+        session.add(homework)
+        session.commit()
+
+        return {
+            "success": True,
+            "data": {
+                "homework_id": homework_id,
+                "content": new_content_json,
+                "version": len(get_generation_history(session, homework_id)),
+                "message": "重新生成成功"
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"重新生成失败: {str(e)}"}
+
+
+@app.post("/api/v1/homework/{homework_id}/select/{history_id}")
+async def select_homework_version(
+    homework_id: int,
+    history_id: int,
+    current_user = Depends(get_current_user)
+):
+    """
+    选择某个历史版本作为当前使用版本
+
+    Args:
+        homework_id: 作业ID
+        history_id: 历史记录ID
+        current_user: 当前用户
+
+    Returns:
+        JSON: 操作结果
+    """
+    session = next(get_session())
+
+    try:
+        # 验证作业所有权
+        homework = session.get(HomeworkItem, homework_id)
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权修改此作业"}
+
+        # 设置活跃版本
+        history = set_active_generation(session, history_id)
+        if not history:
+            return {"success": False, "error": "历史记录不存在"}
+
+        # 更新作业内容
+        import json
+        homework.content = history.content
+        session.add(homework)
+        session.commit()
+
+        return {
+            "success": True,
+            "data": {
+                "homework_id": homework_id,
+                "selected_version": history.version,
+                "history_id": history_id,
+                "message": f"已切换到版本 {history.version}"
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"切换版本失败: {str(e)}"}
+
+
+@app.post("/api/v1/homework/{homework_id}/regenerate-question")
+async def regenerate_question(
+    homework_id: int,
+    question_index: int = Body(..., embed=True),
+    custom_prompt: Optional[str] = Body(None, embed=True),
+    voice_config: Optional[str] = Body(None, embed=True),
+    current_user = Depends(get_current_user)
+):
+    """
+    针对单个题目重新抽卡
+
+    Args:
+        homework_id: 作业ID
+        question_index: 题目索引（从0开始）
+        custom_prompt: 自定义提示词（可选）
+        voice_config: 音色配置（仅听力题，可选）
+        current_user: 当前用户
+
+    Returns:
+        JSON: 新生成的题目数据
+    """
+    session = next(get_session())
+
+    try:
+        # 验证作业所有权
+        homework = session.get(HomeworkItem, homework_id)
+        if not homework:
+            return {"success": False, "error": "作业不存在"}
+
+        if homework.user_id != current_user.user_id:
+            return {"success": False, "error": "无权修改此作业"}
+
+        # 检查并消费额度
+        success, message, result = consume_user_quota(session, current_user.user_id)
+        if not success:
+            return {"success": False, "error": message}
+
+        # 获取当前作业内容
+        import json
+        content = json.loads(homework.content)
+        questions = content.get("questions", [])
+
+        if question_index < 0 or question_index >= len(questions):
+            return {"success": False, "error": "题目索引超出范围"}
+
+        # 获取要重新生成的题目
+        old_question = questions[question_index]
+
+        # 构建上下文
+        previous_context = build_context_from_history(session, homework_id, max_history=5)
+
+        # 调用 AI 重新生成单个题目
+        ai_service = get_ai_service()
+
+        prompt = custom_prompt if custom_prompt else f"请重新生成第 {question_index + 1} 题，保持相同的题型和难度"
+        if previous_context:
+            prompt += f"\n\n之前的生成历史：\n{previous_context}"
+
+        # 重新生成
+        new_questions = ai_service.generate_questions(
+            grade=content.get("grade", "高中"),
+            topic=content.get("topic", "综合练习"),
+            difficulty=content.get("difficulty", "medium"),
+            question_types=[{"type": old_question.get("type", "choice")}],
+            custom_prompt=prompt
+        )
+
+        if not new_questions.get("questions"):
+            return {"success": False, "error": "AI 生成失败"}
+
+        new_question = new_questions["questions"][0]
+
+        # 如果是听力题且指定了音色配置，重新生成音频
+        if "script" in new_question and voice_config:
+            try:
+                from local_tts import get_local_tts
+                tts = get_local_tts()
+
+                # 解析音色配置
+                voice_map = json.loads(voice_config) if isinstance(voice_config, str) else voice_config
+
+                filename = f"listening_{homework.short_id}_q{question_index}_{datetime.now().strftime('%H%M%S')}.mp3"
+                file_path = UPLOAD_DIR / filename
+
+                success, message, result_path = tts.dialogue_to_speech(
+                    script=new_question["script"],
+                    output_path=str(file_path),
+                    voice_map=voice_map
+                )
+
+                if success and result_path:
+                    new_question["audio_url"] = f"/static/uploads/{filename}"
+
+            except Exception as e:
+                print(f"❌ 音频生成失败: {e}")
+
+        # 替换题目
+        questions[question_index] = new_question
+        content["questions"] = questions
+        content["regenerated_at"] = datetime.now().isoformat()
+
+        # 保存完整历史
+        create_generation_history(
+            session=session,
+            homework_id=homework_id,
+            user_id=current_user.user_id,
+            content=json.dumps(content, ensure_ascii=False, indent=2),
+            prompt=f"重新生成第 {question_index + 1} 题: {custom_prompt}",
+            previous_context=previous_context,
+            voice_config=voice_config,
+            metadata=json.dumps({"question_index": question_index}, ensure_ascii=False)
+        )
+
+        # 更新作业内容
+        homework.content = json.dumps(content, ensure_ascii=False, indent=2)
+        session.add(homework)
+        session.commit()
+
+        return {
+            "success": True,
+            "data": {
+                "homework_id": homework_id,
+                "question_index": question_index,
+                "question": new_question,
+                "message": f"第 {question_index + 1} 题重新生成成功"
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"重新生成题目失败: {str(e)}"}
 
 
 # ==================== Payment Routes ====================

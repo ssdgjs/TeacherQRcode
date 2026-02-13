@@ -21,6 +21,7 @@ class AuthSettings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = ""  # JWT_SECRET_KEY（无前缀）
+        extra = "ignore"  # 忽略额外的环境变量
 
 
 auth_settings = AuthSettings()
@@ -131,6 +132,10 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     """
     to_encode = data.copy()
 
+    # 确保 sub 是字符串（JWT 标准）
+    if "sub" in to_encode and isinstance(to_encode["sub"], int):
+        to_encode["sub"] = str(to_encode["sub"])
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -163,15 +168,19 @@ def decode_access_token(token: str) -> TokenData:
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        user_id = payload.get("sub")
         email: str = payload.get("email")
 
         if user_id is None or email is None:
             raise credentials_exception
 
+        # 转换 user_id 为整数（可能是字符串）
+        if isinstance(user_id, str):
+            user_id = int(user_id)
+
         return TokenData(user_id=user_id, email=email)
 
-    except JWTError:
+    except (JWTError, ValueError):
         raise credentials_exception
 
 

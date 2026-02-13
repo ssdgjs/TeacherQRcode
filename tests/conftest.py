@@ -1,8 +1,13 @@
 """
 Pytest配置和共享fixtures
 """
+# 设置测试环境变量（必须在所有其他导入之前）
 import os
 import sys
+
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["JWT_SECRET_KEY"] = "test_secret_key_at_least_32_chars_long_for_testing"
+
 import tempfile
 from pathlib import Path
 from typing import Generator
@@ -15,7 +20,36 @@ from fastapi.testclient import TestClient
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import app
+# Mock init_db 并覆盖 database engine
+import unittest.mock
+
+# 创建测试引擎
+test_engine = None
+
+def mock_init_db():
+    """Mock init_db 不做任何事"""
+    pass
+
+# 在导入main之前应用mock
+with unittest.mock.patch('models.init_db', side_effect=mock_init_db):
+    # 导入main和database模块
+    import database
+    import models
+    from main import app
+
+    # 创建测试引擎并覆盖
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=pool.StaticPool
+    )
+
+    # 覆盖database.engine
+    database.engine = test_engine
+
+    # 也要覆盖models中的engine引用（如果有）
+    if hasattr(models, 'engine'):
+        models.engine = test_engine
 from models import User, Quota, HomeworkItem, Order
 from auth import get_password_hash, create_access_token
 
@@ -57,7 +91,19 @@ def test_client(test_db: Session) -> Generator[TestClient, None, None]:
 
     依赖test_db fixture
     """
-    from database import get_session
+    from database import get_session, engine
+    import models
+
+    # 保存原始 engine
+    original_engine = engine
+
+    # 获取 test_db 使用的 engine
+    test_engine = test_db.bind
+
+    # 覆盖全局 engine
+    database.engine = test_engine
+    if hasattr(models, 'engine'):
+        models.engine = test_engine
 
     def override_get_session():
         yield test_db
@@ -67,6 +113,11 @@ def test_client(test_db: Session) -> Generator[TestClient, None, None]:
 
     with TestClient(app) as client:
         yield client
+
+    # 恢复原始 engine
+    database.engine = original_engine
+    if hasattr(models, 'engine'):
+        models.engine = original_engine
 
     app.dependency_overrides.clear()
 
