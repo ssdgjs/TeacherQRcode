@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: eduqr-postgres
+    environment:
+      - POSTGRES_DB=eduqr
+      - POSTGRES_USER=eduqr
+      - POSTGRES_PASSWORD=eduqr_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eduqr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Web 应用
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/static/uploads # Audio files persistence
+    environment:
+      - DATABASE_URL=postgresql://eduqr:eduqr_password@postgres:5432/eduqr
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-to-a-random-secret-key-min-32-chars}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - DATA_RETENTION_DAYS=${DATA_RETENTION_DAYS:-30}
+      - MAX_CONTENT_LENGTH=${MAX_CONTENT_LENGTH:-10000}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-20}
+      - ALLOWED_AUDIO_EXTENSIONS=${ALLOWED_AUDIO_EXTENSIONS:-mp3,wav,m4a,ogg}
+      - QR_CODE_SIZE=${QR_CODE_SIZE:-300}
+      - QR_ERROR_CORRECTION=${QR_ERROR_CORRECTION:-M}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
+      - VOLCENGINE_ACCESS_KEY=${VOLCENGINE_ACCESS_KEY}
+      - VOLCENGINE_SECRET_KEY=${VOLCENGINE_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local

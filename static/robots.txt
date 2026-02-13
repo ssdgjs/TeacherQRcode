@@ -1,0 +1,11 @@
+# Robots.txt for EduQR AI
+
+User-agent: *
+Allow: /
+
+# Disallow admin and API endpoints
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap
+Sitemap: https://eduai.example.com/sitemap.xml

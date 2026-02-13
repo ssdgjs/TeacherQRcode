@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史记录 - EduQR AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义样式 - 与index.html保持一致 */
+        .toast-notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9999;
+            max-width: 400px;
+        }
+        .toast {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            animation: toastSlideIn 0.3s ease-out;
+        }
+        .toast-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .toast-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        .toast-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .toast-exit {
+            animation: toastSlideOut 0.3s ease-in forwards;
+        }
+        @keyframes toastSlideOut {
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* 骨架屏加载动画 */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 0.375rem;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* 渐变背景动画 */
+        .gradient-bg {
+            background: linear-gradient(-45deg, #0d9488, #14b8a6, #0f766e, #115e59);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 卡片悬浮效果 */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        /* 按钮悬停效果 */
+        .btn-hover {
+            transition: all 0.2s ease;
+        }
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .btn-hover:active {
+            transform: translateY(0);
+        }
+
+        /* 淡入动画 */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 难度标签颜色 */
+        .difficulty-easy { background-color: #d1fae5; color: #065f46; }
+        .difficulty-medium { background-color: #fef3c7; color: #92400e; }
+        .difficulty-hard { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-xl">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="flex items-center space-x-3 text-white hover:text-teal-100 transition-colors">
+                        <div class="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold">EduQR AI</h1>
+                            <p class="text-teal-100 text-xs">历史记录</p>
+                        </div>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <a href="/generate" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-4 py-2 text-sm font-medium transition-all flex items-center space-x-2">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>生成作业</span>
+                    </a>
+                    <button onclick="logout()" class="bg-red-500/20 hover:bg-red-500/30 backdrop-blur-sm rounded-lg px-4 py-2 text-sm font-medium transition-all">
+                        退出
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 额度显示 -->
+        <div id="quota-display" class="bg-white rounded-xl shadow-md p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-teal-100 p-2 rounded-lg">
+                        <svg class="h-6 w-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">今日额度</p>
+                        <p id="quota-text" class="text-lg font-bold text-gray-800">加载中...</p>
+                    </div>
+                </div>
+                <a href="/generate" class="bg-gradient-to-r from-teal-600 to-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-teal-700 hover:to-teal-800 transition-all btn-hover">
+                    生成新作业
+                </a>
+            </div>
+        </div>
+
+        <!-- 筛选器 -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="h-5 w-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                筛选条件
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">主题搜索</label>
+                    <input type="text" id="topic-filter" placeholder="输入主题关键词..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">开始日期</label>
+                    <input type="date" id="date-from"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">结束日期</label>
+                    <input type="date" id="date-to"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="applyFilters()" class="w-full bg-gray-800 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-900 transition-all btn-hover">
+                        应用筛选
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 flex justify-between items-center">
+                <button onclick="clearFilters()" class="text-sm text-teal-600 hover:text-teal-700 font-medium">
+                    清除筛选
+                </button>
+                <span id="result-count" class="text-sm text-gray-600"></span>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loading" class="space-y-4">
+            <!-- 骨架屏卡片 -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center space-x-4 mb-4">
+                    <div class="skeleton w-12 h-12 rounded-full"></div>
+                    <div class="flex-1">
+                        <div class="skeleton h-4 w-3/4 mb-2"></div>
+                        <div class="skeleton h-3 w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center space-x-4 mb-4">
+                    <div class="skeleton w-12 h-12 rounded-full"></div>
+                    <div class="flex-1">
+                        <div class="skeleton h-4 w-3/4 mb-2"></div>
+                        <div class="skeleton h-3 w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center space-x-4 mb-4">
+                    <div class="skeleton w-12 h-12 rounded-full"></div>
+                    <div class="flex-1">
+                        <div class="skeleton h-4 w-3/4 mb-2"></div>
+                        <div class="skeleton h-3 w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 作业列表 -->
+        <div id="homework-list" class="space-y-4 hidden">
+            <!-- 动态填充 -->
+        </div>
+
+        <!-- 空状态 -->
+        <div id="empty-state" class="hidden bg-white rounded-xl shadow-md p-12 text-center">
+            <svg class="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">暂无作业记录</h3>
+            <p class="text-gray-600 mb-6">开始使用AI生成您的第一个英语作业吧！</p>
+            <a href="/generate" class="inline-block bg-gradient-to-r from-teal-600 to-teal-700 text-white px-6 py-3 rounded-lg font-medium hover:from-teal-700 hover:to-teal-800 transition-all btn-hover">
+                开始生成
+            </a>
+        </div>
+
+        <!-- 分页 -->
+        <div id="pagination" class="mt-6 flex justify-center items-center space-x-4 hidden">
+            <button onclick="loadPage(currentPage - 1)" id="prev-btn" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                上一页
+            </button>
+            <span id="page-info" class="text-gray-700 font-medium"></span>
+            <button onclick="loadPage(currentPage + 1)" id="next-btn" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                下一页
+            </button>
+        </div>
+    </main>
+
+    <!-- 删除确认模态框 -->
+    <div id="delete-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">确认删除</h3>
+            <p class="text-gray-600 mb-6">确定要删除这个作业吗？删除后无法恢复。</p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                    取消
+                </button>
+                <button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toast-container" class="toast-notification"></div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentFilters = {};
+        let deleteTargetId = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            loadQuota();
+            loadHistory();
+        });
+
+        // 检查登录状态
+        function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+            }
+        }
+
+        // 加载额度
+        async function loadQuota() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            try {
+                const response = await fetch('/api/v1/quota', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateQuotaDisplay(data.data);
+                    }
+                }
+            } catch (error) {
+                console.error('加载额度失败:', error);
+            }
+        }
+
+        // 更新额度显示
+        function updateQuotaDisplay(quota) {
+            const quotaText = document.getElementById('quota-text');
+            const freeRemaining = quota.free_limit - quota.free_used_today;
+
+            if (quota.is_subscriber) {
+                quotaText.innerHTML = '<span class="text-teal-600">⭐ 月卡用户（无限）</span>';
+            } else if (quota.purchased_count > 0) {
+                quotaText.innerHTML = `<span class="text-teal-600">${quota.purchased_count}次</span> + <span class="text-gray-600">免费 ${freeRemaining}/${quota.free_limit}</span>`;
+            } else {
+                quotaText.textContent = `免费 ${freeRemaining}/${quota.free_limit}`;
+            }
+        }
+
+        // 加载历史记录
+        async function loadHistory(page = 1) {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            // 显示加载状态
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('homework-list').classList.add('hidden');
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('pagination').classList.add('hidden');
+
+            // 构建查询参数
+            const params = new URLSearchParams({
+                page: page,
+                limit: 20,
+                ...currentFilters
+            });
+
+            try {
+                const response = await fetch(`/api/v1/homework/history?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.removeItem('access_token');
+                        window.location.href = '/login';
+                    }
+                    throw new Error('加载失败');
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentPage = result.data.page;
+                    totalPages = Math.ceil(result.data.total / result.data.limit);
+                    displayHomeworks(result.data.items);
+                    updatePagination(result.data);
+                    updateResultCount(result.data.total);
+                } else {
+                    showError(result.error);
+                }
+            } catch (error) {
+                showError('加载历史记录失败: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        // 显示作业列表
+        function displayHomeworks(items) {
+            const listContainer = document.getElementById('homework-list');
+            const emptyState = document.getElementById('empty-state');
+
+            if (items.length === 0) {
+                listContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            listContainer.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            listContainer.innerHTML = items.map(item => `
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover fade-in">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3 mb-3">
+                                <div class="bg-teal-100 p-2 rounded-lg">
+                                    <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800">${item.title}</h3>
+                                    <p class="text-sm text-gray-500">${formatDate(item.created_at)}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                ${item.homework_type === 'ai_generated' ? `
+                                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">AI生成</span>
+                                    <span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">${item.grade}</span>
+                                    <span class="px-3 py-1 difficulty-${item.difficulty} rounded-full text-xs font-medium">${getDifficultyLabel(item.difficulty)}</span>
+                                    <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">${item.question_types_label}</span>
+                                ` : `
+                                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">手动输入</span>
+                                `}
+                            </div>
+
+                            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                <span class="font-mono text-xs">${item.short_id}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 ml-4">
+                            <a href="${item.view_url}" target="_blank" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors" title="查看">
+                                <svg class="h-5 w-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </a>
+                            ${item.homework_type === 'ai_generated' ? `
+                                <button onclick="regenerateHomework(${item.id})" class="p-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors" title="重新生成">
+                                    <svg class="h-5 w-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            ` : ''}
+                            <button onclick="showDeleteModal(${item.id})" class="p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors" title="删除">
+                                <svg class="h-5 w-5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新分页信息
+        function updatePagination(data) {
+            const pagination = document.getElementById('pagination');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const pageInfo = document.getElementById('page-info');
+
+            pagination.classList.remove('hidden');
+            prevBtn.disabled = !data.has_prev;
+            nextBtn.disabled = !data.has_next;
+            pageInfo.textContent = `第 ${data.page} 页`;
+        }
+
+        // 更新结果数量
+        function updateResultCount(total) {
+            document.getElementById('result-count').textContent = `共 ${total} 条记录`;
+        }
+
+        // 加载指定页
+        function loadPage(page) {
+            if (page < 1 || page > totalPages) return;
+            loadHistory(page);
+        }
+
+        // 应用筛选
+        function applyFilters() {
+            currentFilters = {};
+
+            const topic = document.getElementById('topic-filter').value.trim();
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+
+            if (topic) currentFilters.topic_filter = topic;
+            if (dateFrom) currentFilters.date_from = dateFrom;
+            if (dateTo) currentFilters.date_to = dateTo;
+
+            loadHistory(1);
+        }
+
+        // 清除筛选
+        function clearFilters() {
+            document.getElementById('topic-filter').value = '';
+            document.getElementById('date-from').value = '';
+            document.getElementById('date-to').value = '';
+            currentFilters = {};
+            loadHistory(1);
+        }
+
+        // 显示删除确认框
+        function showDeleteModal(homeworkId) {
+            deleteTargetId = homeworkId;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        // 关闭删除确认框
+        function closeDeleteModal() {
+            deleteTargetId = null;
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        // 确认删除
+        async function confirmDelete() {
+            if (!deleteTargetId) return;
+
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`/api/v1/homework/${deleteTargetId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess('作业已删除');
+                    closeDeleteModal();
+                    loadHistory(currentPage);
+                } else {
+                    showError(result.error);
+                }
+            } catch (error) {
+                showError('删除失败: ' + error.message);
+            }
+        }
+
+        // 重新生成作业（跳转到生成页面，预填参数）
+        async function regenerateHomework(homeworkId) {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`/api/v1/homework/${homeworkId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const hw = result.data;
+                    // 跳转到生成页面，通过URL参数传递配置
+                    const params = new URLSearchParams({
+                        grade: hw.grade,
+                        topic: hw.topic,
+                        difficulty: hw.difficulty,
+                        regenerate: 'true'
+                    });
+                    window.location.href = `/generate?${params.toString()}`;
+                } else {
+                    showError(result.error);
+                }
+            } catch (error) {
+                showError('加载作业详情失败: ' + error.message);
+            }
+        }
+
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+            if (days === 0) return '今天';
+            if (days === 1) return '昨天';
+            if (days < 7) return `${days}天前`;
+
+            return date.toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 获取难度标签
+        function getDifficultyLabel(difficulty) {
+            const labels = {
+                'easy': '简单',
+                'medium': '中等',
+                'hard': '困难'
+            };
+            return labels[difficulty] || difficulty;
+        }
+
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/login';
+        }
+
+        // Toast 通知
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                error: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+                info: '<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+            };
+
+            toast.innerHTML = `${icons[type]}<span class="font-medium">${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-exit');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, duration);
+        }
+
+        function showError(message) {
+            showToast(message, 'error', 4000);
+        }
+
+        function showSuccess(message) {
+            showToast(message, 'success', 3000);
+        }
+    </script>
+</body>
+</html>
