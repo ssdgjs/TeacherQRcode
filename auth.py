@@ -21,6 +21,7 @@ class AuthSettings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = ""  # JWT_SECRET_KEY（无前缀）
+        extra = "ignore"
 
 
 auth_settings = AuthSettings()
