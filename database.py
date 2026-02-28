@@ -13,6 +13,7 @@ class DatabaseSettings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = "DB_"
+        extra = "ignore"
 
 
 # 使用环境变量或默认值

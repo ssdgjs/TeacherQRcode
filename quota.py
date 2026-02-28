@@ -16,6 +16,7 @@ class QuotaSettings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = ""
+        extra = "ignore"
 
 
 quota_settings = QuotaSettings()
