@@ -5,8 +5,12 @@ import os
 import uuid
 from typing import Optional, Dict, Any
 from datetime import datetime
-from volcengine.Api import  Api as TtsApi
 from pathlib import Path
+
+try:
+    from volcengine.Api import Api as TtsApi
+except ImportError:
+    TtsApi = None
 
 
 class VolcengineTTSService:
