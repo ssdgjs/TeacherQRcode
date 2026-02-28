@@ -17,7 +17,7 @@ from sqlalchemy import select
 from models import (
     init_db, get_session, HomeworkItem, HomeworkCreate,
     HomeworkResponse, delete_expired_homeworks, get_homework_by_short_id,
-    save_homework, delete_homework, User, UserResponse,
+    save_homework, delete_homework, update_homework, User, UserResponse,
     get_user_by_email, create_user, update_last_login,
     get_user_by_id, QuotaResponse, QuotaConsumeResponse
 )
@@ -1303,6 +1303,127 @@ async def generate_qrcode(
             "short_id": short_id,
             "view_url": view_url
         }
+
+
+@app.get("/api/homework/{short_id}")
+async def find_homework(short_id: str, access_code: str):
+    """
+    查找活码记录（编辑前查询）
+
+    Args:
+        short_id: 作业短 ID（访问码）
+        access_code: 管理暗号
+
+    Returns:
+        JSON: 作业内容信息
+    """
+    if access_code != settings.admin_password:
+        raise HTTPException(status_code=403, detail="暗号错误，请联系教师获取")
+
+    session = next(get_session())
+    homework = get_homework_by_short_id(session, short_id)
+
+    if not homework:
+        raise HTTPException(status_code=404, detail="未找到该访问码对应的作业")
+
+    if homework.homework_type == "static":
+        raise HTTPException(
+            status_code=400,
+            detail="静态码内容编码在二维码本身中，无法修改"
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "short_id": homework.short_id,
+            "content": homework.content,
+            "title": homework.title,
+            "homework_type": homework.homework_type,
+            "audio_path": homework.audio_path,
+            "audio_filename": homework.audio_filename,
+            "audio_size": homework.audio_size,
+            "created_at": homework.created_at.isoformat(),
+            "view_url": f"{settings.base_url}/v/{homework.short_id}"
+        }
+    }
+
+
+@app.put("/api/homework/{short_id}")
+async def update_homework_endpoint(
+    short_id: str,
+    access_code: str = Form(""),
+    content: str = Form(""),
+    audio_filename: Optional[str] = Form(None),
+    audio_path: Optional[str] = Form(None),
+    audio_size: Optional[int] = Form(None),
+):
+    """
+    更新活码作业内容
+
+    Args:
+        short_id: 作业短 ID
+        access_code: 管理暗号
+        content: 新的作业内容
+        audio_filename: 新音频文件名（可选）
+        audio_path: 新音频路径（可选）
+        audio_size: 新音频大小（可选）
+
+    Returns:
+        JSON: 更新结果
+    """
+    if access_code != settings.admin_password:
+        raise HTTPException(status_code=403, detail="暗号错误，请联系教师获取")
+
+    if not content or not content.strip():
+        raise HTTPException(status_code=400, detail="内容不能为空")
+
+    is_valid, error_msg = validate_content_length(content, settings.max_content_length)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    session = next(get_session())
+    homework = get_homework_by_short_id(session, short_id)
+
+    if not homework:
+        raise HTTPException(status_code=404, detail="未找到该访问码对应的作业")
+
+    if homework.homework_type == "static":
+        raise HTTPException(
+            status_code=400,
+            detail="静态码内容编码在二维码本身中，无法修改"
+        )
+
+    # 如果上传了新音频且旧音频存在，删除旧音频文件
+    if audio_path and homework.audio_path and audio_path != homework.audio_path:
+        try:
+            old_file = UPLOAD_DIR / homework.audio_path
+            if old_file.exists():
+                old_file.unlink()
+        except Exception as e:
+            print(f"Warning: failed to delete old audio file: {e}")
+
+    title = extract_title(content)
+
+    updated = update_homework(
+        session,
+        short_id=short_id,
+        content=content,
+        title=title,
+        audio_path=audio_path,
+        audio_filename=audio_filename,
+        audio_size=audio_size,
+    )
+
+    if not updated:
+        raise HTTPException(status_code=500, detail="更新失败，请重试")
+
+    return {
+        "success": True,
+        "data": {
+            "short_id": updated.short_id,
+            "view_url": f"{settings.base_url}/v/{updated.short_id}"
+        }
+    }
 
 
 @app.get("/api/stats")

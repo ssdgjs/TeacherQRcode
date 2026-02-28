@@ -444,6 +444,11 @@
                         <span class="text-xl">🎧</span>
                         <span>听力作业</span>
                     </button>
+                    <button onclick="switchMode('edit')" id="tab-edit"
+                        class="flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 hover:bg-gray-50 flex items-center justify-center space-x-2">
+                        <span class="text-xl">✏️</span>
+                        <span>编辑已有码</span>
+                    </button>
                 </div>
 
                 <!-- Access Code -->
@@ -494,59 +499,175 @@
                     <input type="hidden" id="audio-size">
                 </div>
 
-                <!-- Content Input -->
-                <div class="bg-white rounded-2xl shadow-lg p-6 card-hover">
-                    <label class="block text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                <!-- Edit Mode: Search Panel -->
+                <div id="edit-search-section" class="bg-white rounded-2xl shadow-lg p-6 card-hover hidden">
+                    <h3 class="text-sm font-semibold text-gray-800 mb-4 flex items-center">
                         <svg class="h-4 w-4 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        作业内容
-                    </label>
-                    <textarea id="content" rows="12" placeholder="请输入作业内容... 支持 Markdown 格式"
-                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none transition-all duration-200 text-gray-700"
-                        oninput="updateCharCount()"></textarea>
-                    <div class="mt-3 flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
-                        <div class="flex items-center space-x-2 text-sm">
-                            <span class="text-gray-600">当前:</span>
-                            <span id="char-count" class="font-bold text-teal-600 text-lg">0</span>
-                            <span class="text-gray-600">字符</span>
+                        Step 1: 查找作业
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">访问码 (Short ID)</label>
+                            <input type="text" id="edit-short-id" placeholder="请输入要编辑的访问码，如 Ab3xK9mN"
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono text-lg tracking-wider">
                         </div>
-                        <div id="mode-recommendation" class="text-sm font-medium text-teal-600 bg-teal-50 px-3 py-1 rounded-full"></div>
+                        <button onclick="findHomework()" id="find-btn"
+                            class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-200 btn-hover ripple flex items-center justify-center space-x-2">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <span>查找作业</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- QR Settings -->
-                <div class="bg-white rounded-xl shadow-md p-6">
-                    <h3 class="text-sm font-medium text-gray-700 mb-4">二维码设置</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">容错率</label>
-                            <select id="error-correction"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
-                                <option value="L">L (7%)</option>
-                                <option value="M" selected>M (15%)</option>
-                                <option value="Q">Q (25%)</option>
-                                <option value="H">H (30%)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">尺寸 (px)</label>
-                            <input type="number" id="qr-size" value="{{ default_size }}" min="200" max="1000"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
+                <!-- Edit Mode: Edit Panel (shown after successful search) -->
+                <div id="edit-content-section" class="hidden space-y-6">
+                    <!-- Homework Info -->
+                    <div class="bg-teal-50 rounded-xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <span id="edit-type-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-teal-100 text-teal-700"></span>
+                                <span id="edit-created-at" class="text-xs text-gray-500"></span>
+                            </div>
+                            <button onclick="resetEditMode()" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                                重新查找
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Edit Audio Upload (for listening type) -->
+                    <div id="edit-audio-section" class="bg-white rounded-xl shadow-md p-6 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            🎵 音频文件
+                        </label>
+                        <div id="edit-current-audio" class="mb-3 p-3 bg-gray-50 rounded-lg hidden">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                    </svg>
+                                    <span id="edit-audio-name" class="text-sm text-gray-700"></span>
+                                    <span id="edit-audio-size" class="text-xs text-gray-500"></span>
+                                </div>
+                                <span class="text-xs text-green-600 font-medium">当前音频</span>
+                            </div>
+                        </div>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-teal-500 transition-colors"
+                            id="edit-drop-zone">
+                            <input type="file" id="edit-audio-file" accept=".mp3,.wav,.m4a,.ogg" class="hidden">
+                            <div id="edit-upload-prompt">
+                                <p class="text-sm text-gray-600">点击上传新音频替换（可选）</p>
+                                <p class="mt-1 text-xs text-gray-500">不上传则保留原音频</p>
+                            </div>
+                            <div id="edit-upload-progress" class="hidden">
+                                <div class="spinner mx-auto mb-2"></div>
+                                <p class="text-sm text-gray-600">上传中...</p>
+                            </div>
+                            <div id="edit-upload-success" class="hidden">
+                                <svg class="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p class="mt-1 text-sm font-medium text-gray-900" id="edit-uploaded-filename"></p>
+                                <button onclick="clearEditAudio()" class="mt-2 text-xs text-red-600 hover:text-red-700">撤销替换</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="edit-audio-path">
+                        <input type="hidden" id="edit-audio-filename-val">
+                        <input type="hidden" id="edit-audio-size-val">
+                    </div>
+
+                    <!-- Edit Content -->
+                    <div class="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                        <label class="block text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                            <svg class="h-4 w-4 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            编辑作业内容
+                        </label>
+                        <textarea id="edit-content" rows="12" placeholder="修改作业内容..."
+                            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none transition-all duration-200 text-gray-700"
+                            oninput="updateEditCharCount()"></textarea>
+                        <div class="mt-3 flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
+                            <div class="flex items-center space-x-2 text-sm">
+                                <span class="text-gray-600">当前:</span>
+                                <span id="edit-char-count" class="font-bold text-teal-600 text-lg">0</span>
+                                <span class="text-gray-600">字符</span>
+                            </div>
+                            <div class="text-sm font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full">✏️ 编辑模式</div>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <button onclick="updateHomework()" id="save-edit-btn"
+                        class="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-amber-600 hover:to-amber-700 transition-all duration-300 transform hover:scale-[1.02] btn-hover ripple relative overflow-hidden">
+                        <span class="relative z-10 flex items-center justify-center space-x-2">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>保存更新</span>
+                        </span>
+                    </button>
                 </div>
 
-                <!-- Generate Button -->
-                <button onclick="generateQR()" id="generate-btn"
-                    class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-teal-700 hover:to-teal-800 transition-all duration-300 transform hover:scale-[1.02] btn-hover ripple relative overflow-hidden">
-                    <span class="relative z-10 flex items-center justify-center space-x-2">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                        </svg>
-                        <span>生成二维码</span>
-                    </span>
-                </button>
+                <!-- Create Mode: Content Input (hidden in edit mode) -->
+                <div id="create-sections">
+                    <!-- Content Input -->
+                    <div class="bg-white rounded-2xl shadow-lg p-6 card-hover">
+                        <label class="block text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                            <svg class="h-4 w-4 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            作业内容
+                        </label>
+                        <textarea id="content" rows="12" placeholder="请输入作业内容... 支持 Markdown 格式"
+                            class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none transition-all duration-200 text-gray-700"
+                            oninput="updateCharCount()"></textarea>
+                        <div class="mt-3 flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
+                            <div class="flex items-center space-x-2 text-sm">
+                                <span class="text-gray-600">当前:</span>
+                                <span id="char-count" class="font-bold text-teal-600 text-lg">0</span>
+                                <span class="text-gray-600">字符</span>
+                            </div>
+                            <div id="mode-recommendation" class="text-sm font-medium text-teal-600 bg-teal-50 px-3 py-1 rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <!-- QR Settings -->
+                    <div class="bg-white rounded-xl shadow-md p-6 mt-6">
+                        <h3 class="text-sm font-medium text-gray-700 mb-4">二维码设置</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">容错率</label>
+                                <select id="error-correction"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
+                                    <option value="L">L (7%)</option>
+                                    <option value="M" selected>M (15%)</option>
+                                    <option value="Q">Q (25%)</option>
+                                    <option value="H">H (30%)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">尺寸 (px)</label>
+                                <input type="number" id="qr-size" value="{{ default_size }}" min="200" max="1000"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <button onclick="generateQR()" id="generate-btn"
+                        class="w-full mt-6 bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 px-6 rounded-2xl font-bold text-lg shadow-xl hover:from-teal-700 hover:to-teal-800 transition-all duration-300 transform hover:scale-[1.02] btn-hover ripple relative overflow-hidden">
+                        <span class="relative z-10 flex items-center justify-center space-x-2">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                            </svg>
+                            <span>生成二维码</span>
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <!-- Right Panel: Preview (40%) -->
@@ -665,6 +786,12 @@
             <span class="shortcut-desc">听力模式</span>
             <div>
                 <span class="kbd">Ctrl</span> + <span class="kbd">3</span>
+            </div>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">编辑模式</span>
+            <div>
+                <span class="kbd">Ctrl</span> + <span class="kbd">4</span>
             </div>
         </div>
         <div class="shortcut-item">
@@ -883,6 +1010,11 @@
                     e.preventDefault();
                     switchMode('listening');
                 }
+                // Ctrl/Cmd + 4: 编辑已有码
+                if ((e.ctrlKey || e.metaKey) && e.key === '4') {
+                    e.preventDefault();
+                    switchMode('edit');
+                }
                 // Escape: 关闭快捷键面板
                 if (e.key === 'Escape') {
                     const panel = document.getElementById('shortcuts-panel');
@@ -929,7 +1061,7 @@
             currentMode = mode;
 
             // 更新 Tab 样式
-            const tabs = ['static', 'text', 'listening'];
+            const tabs = ['static', 'text', 'listening', 'edit'];
             tabs.forEach(tab => {
                 const btn = document.getElementById(`tab-${tab}`);
                 if (tab === mode) {
@@ -949,8 +1081,51 @@
                 clearAudio();
             }
 
+            // 编辑模式切换
+            const editSearchSection = document.getElementById('edit-search-section');
+            const editContentSection = document.getElementById('edit-content-section');
+            const createSections = document.getElementById('create-sections');
+            const qrPreviewPanel = document.getElementById('qr-placeholder');
+            const qrDisplay = document.getElementById('qr-display');
+
+            if (mode === 'edit') {
+                editSearchSection.classList.remove('hidden');
+                editSearchSection.classList.add('fade-in');
+                createSections.classList.add('hidden');
+                // 右侧预览区显示编辑模式提示
+                qrDisplay.classList.add('hidden');
+                qrPreviewPanel.classList.remove('hidden');
+                qrPreviewPanel.innerHTML = `
+                    <div class="text-center text-gray-400 p-6">
+                        <svg class="mx-auto h-24 w-24 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <p class="text-sm font-medium">编辑模式</p>
+                        <p class="text-xs mt-2 text-gray-400">输入访问码查找已有作业</p>
+                        <p class="text-xs mt-1">修改后学生扫码即可看到新内容</p>
+                    </div>
+                `;
+            } else {
+                editSearchSection.classList.add('hidden');
+                editContentSection.classList.add('hidden');
+                createSections.classList.remove('hidden');
+                // 恢复右侧默认占位
+                qrPreviewPanel.innerHTML = `
+                    <div class="text-center text-gray-400 p-6">
+                        <svg class="mx-auto h-24 w-24 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        <p class="text-sm font-medium">输入内容后点击生成</p>
+                        <p class="text-xs mt-2 text-gray-400">支持三种模式</p>
+                        <p class="text-xs mt-1">快捷键: <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></p>
+                    </div>
+                `;
+            }
+
             // 更新字符计数提示
-            updateCharCount();
+            if (mode !== 'edit') {
+                updateCharCount();
+            }
         }
 
         // 设置文件上传
@@ -1170,6 +1345,265 @@
             } finally {
                 document.getElementById('generate-btn').disabled = false;
             }
+        }
+
+        // ==================== 编辑模式相关函数 ====================
+        let editingShortId = null;
+
+        // 查找作业
+        async function findHomework() {
+            const shortId = document.getElementById('edit-short-id').value.trim();
+            const accessCode = document.getElementById('access-code').value;
+
+            if (!shortId) {
+                showError('请输入访问码');
+                return;
+            }
+            if (!accessCode) {
+                showError('请输入管理暗号');
+                return;
+            }
+
+            const findBtn = document.getElementById('find-btn');
+            findBtn.disabled = true;
+            findBtn.querySelector('span').textContent = '查找中...';
+
+            try {
+                const response = await fetch(`/api/homework/${encodeURIComponent(shortId)}?access_code=${encodeURIComponent(accessCode)}`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || error.detail || '查找失败');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '查找失败');
+                }
+
+                const hw = data.data;
+                editingShortId = hw.short_id;
+
+                // 填充编辑区域
+                document.getElementById('edit-content').value = hw.content;
+                updateEditCharCount();
+
+                // 显示类型和时间
+                const typeLabels = { 'text': '活码作业', 'listening': '听力作业', 'ai_generated': 'AI生成' };
+                document.getElementById('edit-type-badge').textContent = typeLabels[hw.homework_type] || hw.homework_type;
+                document.getElementById('edit-created-at').textContent = '创建于 ' + new Date(hw.created_at).toLocaleString('zh-CN');
+
+                // 音频信息
+                const editAudioSection = document.getElementById('edit-audio-section');
+                if (hw.homework_type === 'listening') {
+                    editAudioSection.classList.remove('hidden');
+                    if (hw.audio_filename) {
+                        const currentAudio = document.getElementById('edit-current-audio');
+                        currentAudio.classList.remove('hidden');
+                        document.getElementById('edit-audio-name').textContent = hw.audio_filename;
+                        document.getElementById('edit-audio-size').textContent = hw.audio_size ? formatFileSize(hw.audio_size) : '';
+                    }
+                    // 初始化编辑音频上传
+                    setupEditFileUpload();
+                } else {
+                    editAudioSection.classList.add('hidden');
+                }
+
+                // 切换显示
+                document.getElementById('edit-search-section').classList.add('hidden');
+                const editSection = document.getElementById('edit-content-section');
+                editSection.classList.remove('hidden');
+                editSection.classList.add('fade-in');
+
+                // 更新右侧预览
+                const qrPreview = document.getElementById('qr-placeholder');
+                qrPreview.innerHTML = `
+                    <div class="text-center text-gray-400 p-6">
+                        <svg class="mx-auto h-16 w-16 mb-4 text-amber-400 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <p class="text-sm font-medium text-amber-600">正在编辑</p>
+                        <p class="text-xs mt-2 font-mono text-gray-500">${hw.short_id}</p>
+                        <a href="${hw.view_url}" target="_blank" class="inline-block mt-3 text-xs text-teal-600 hover:text-teal-700 underline">查看当前页面 ↗</a>
+                    </div>
+                `;
+
+                showSuccess('已找到作业，可以开始编辑');
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                findBtn.disabled = false;
+                findBtn.querySelector('span').textContent = '查找作业';
+            }
+        }
+
+        // 更新作业
+        async function updateHomework() {
+            if (!editingShortId) {
+                showError('未选择作业');
+                return;
+            }
+
+            const content = document.getElementById('edit-content').value.trim();
+            const accessCode = document.getElementById('access-code').value;
+
+            if (!content) {
+                showError('内容不能为空');
+                return;
+            }
+            if (!accessCode) {
+                showError('请输入管理暗号');
+                return;
+            }
+
+            const saveBtn = document.getElementById('save-edit-btn');
+            saveBtn.disabled = true;
+            saveBtn.querySelector('span:last-child').textContent = '保存中...';
+
+            const formData = new FormData();
+            formData.append('access_code', accessCode);
+            formData.append('content', content);
+
+            // 如果有新上传的音频
+            const newAudioPath = document.getElementById('edit-audio-path').value;
+            if (newAudioPath) {
+                formData.append('audio_path', newAudioPath);
+                formData.append('audio_filename', document.getElementById('edit-audio-filename-val').value);
+                formData.append('audio_size', document.getElementById('edit-audio-size-val').value);
+            }
+
+            try {
+                const response = await fetch(`/api/homework/${encodeURIComponent(editingShortId)}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || error.detail || '更新失败');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '更新失败');
+                }
+
+                // 更新右侧预览
+                const qrPreview = document.getElementById('qr-placeholder');
+                qrPreview.innerHTML = `
+                    <div class="text-center p-6">
+                        <svg class="mx-auto h-16 w-16 mb-4 text-green-500 checkmark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-sm font-medium text-green-600">更新成功!</p>
+                        <p class="text-xs mt-2 font-mono text-gray-500">${data.data.short_id}</p>
+                        <a href="${data.data.view_url}" target="_blank" class="inline-block mt-3 text-xs text-teal-600 hover:text-teal-700 underline">查看更新后的页面 ↗</a>
+                    </div>
+                `;
+
+                showSuccess('作业内容已更新！学生扫码即可看到新内容');
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.querySelector('span:last-child').textContent = '保存更新';
+            }
+        }
+
+        // 重置编辑模式
+        function resetEditMode() {
+            editingShortId = null;
+            document.getElementById('edit-content-section').classList.add('hidden');
+            document.getElementById('edit-search-section').classList.remove('hidden');
+            document.getElementById('edit-short-id').value = '';
+            document.getElementById('edit-content').value = '';
+            document.getElementById('edit-audio-path').value = '';
+            document.getElementById('edit-audio-filename-val').value = '';
+            document.getElementById('edit-audio-size-val').value = '';
+            document.getElementById('edit-current-audio').classList.add('hidden');
+            clearEditAudio();
+        }
+
+        // 更新编辑模式字符计数
+        function updateEditCharCount() {
+            const content = document.getElementById('edit-content').value;
+            document.getElementById('edit-char-count').textContent = content.length;
+        }
+
+        // 编辑模式音频上传
+        function setupEditFileUpload() {
+            const dropZone = document.getElementById('edit-drop-zone');
+            const fileInput = document.getElementById('edit-audio-file');
+
+            // 移除旧监听器（防止重复绑定）
+            const newDropZone = dropZone.cloneNode(true);
+            dropZone.parentNode.replaceChild(newDropZone, dropZone);
+            const newFileInput = newDropZone.querySelector('#edit-audio-file');
+
+            newDropZone.addEventListener('click', () => newFileInput.click());
+            newDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                newDropZone.classList.add('border-teal-500', 'bg-teal-50');
+            });
+            newDropZone.addEventListener('dragleave', () => {
+                newDropZone.classList.remove('border-teal-500', 'bg-teal-50');
+            });
+            newDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                newDropZone.classList.remove('border-teal-500', 'bg-teal-50');
+                if (e.dataTransfer.files.length > 0) uploadEditAudio(e.dataTransfer.files[0]);
+            });
+            newFileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) uploadEditAudio(e.target.files[0]);
+            });
+        }
+
+        async function uploadEditAudio(file) {
+            const prompt = document.getElementById('edit-upload-prompt');
+            const progress = document.getElementById('edit-upload-progress');
+            const success = document.getElementById('edit-upload-success');
+
+            prompt.classList.add('hidden');
+            progress.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload-audio', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '上传失败');
+                }
+
+                const data = await response.json();
+                progress.classList.add('hidden');
+                success.classList.remove('hidden');
+                document.getElementById('edit-uploaded-filename').textContent = data.filename;
+                document.getElementById('edit-audio-path').value = data.path;
+                document.getElementById('edit-audio-filename-val').value = data.filename;
+                document.getElementById('edit-audio-size-val').value = data.size;
+
+                showSuccess(`新音频上传成功: ${data.filename}`);
+            } catch (error) {
+                progress.classList.add('hidden');
+                prompt.classList.remove('hidden');
+                showError(error.message);
+            }
+        }
+
+        function clearEditAudio() {
+            document.getElementById('edit-audio-path').value = '';
+            document.getElementById('edit-audio-filename-val').value = '';
+            document.getElementById('edit-audio-size-val').value = '';
+            const prompt = document.getElementById('edit-upload-prompt');
+            const progress = document.getElementById('edit-upload-progress');
+            const success = document.getElementById('edit-upload-success');
+            if (prompt) prompt.classList.remove('hidden');
+            if (progress) progress.classList.add('hidden');
+            if (success) success.classList.add('hidden');
         }
 
         // 下载二维码

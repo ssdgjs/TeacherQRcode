@@ -388,6 +388,36 @@ def get_homework_by_short_id(session: Session, short_id: str) -> Optional[Homewo
     return result
 
 
+def update_homework(
+    session: Session,
+    short_id: str,
+    content: str,
+    title: Optional[str] = None,
+    audio_path: Optional[str] = None,
+    audio_filename: Optional[str] = None,
+    audio_size: Optional[int] = None,
+) -> Optional[HomeworkItem]:
+    """更新活码作业内容（不修改 short_id、homework_type、created_at）"""
+    homework = get_homework_by_short_id(session, short_id)
+    if not homework:
+        return None
+
+    homework.content = content
+    if title is not None:
+        homework.title = title
+    if audio_path is not None:
+        homework.audio_path = audio_path
+    if audio_filename is not None:
+        homework.audio_filename = audio_filename
+    if audio_size is not None:
+        homework.audio_size = audio_size
+
+    session.add(homework)
+    session.commit()
+    session.refresh(homework)
+    return homework
+
+
 def delete_homework(session: Session, homework: HomeworkItem):
     """删除作业记录"""
     session.delete(homework)

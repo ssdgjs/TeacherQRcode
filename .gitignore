@@ -44,6 +44,11 @@ data/
 
 # Uploads
 uploads/
+static/uploads/
+
+# AI Model Files (too large for GitHub)
+asset/
+config/
 
 # Logs
 *.log
